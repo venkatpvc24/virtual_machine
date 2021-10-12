@@ -2,15 +2,55 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "LC.h"
-#include "./include/add.h"
-#include "utilities.h"
-
-
-#ifndef PRINT_CODE
-  #define PRINT_CODE 0
+#ifdef TRACE
+    #define DEBUG_TRACE(...) (fprintf(stderr, __VA_ARGS__))
+#else
+    #define DEBUG_TRACE(...)
 #endif
 
+uint16_t __stack[UINT16_MAX];
+
+
+typedef enum { R0, R1, R2, R3, R4, R5, R6, R7, R_PC, R_COND, R_COUNT } reg_t;
+
+typedef enum {
+    BR = 0b0000,
+    ADD = 0b0001,
+    LD = 0b0010,
+    ST = 0b0011,
+    JSR = 0b0100,
+    AND = 0b0101,
+    LDR = 0b0110,
+    STR = 0b0111,
+    RTI = 0b1000,
+    NOT = 0b1001,
+    LDI = 0b1010,
+    STI = 0b1011,
+    RET = 0b1100,
+    RES = 0b1101,
+    LEA = 0b1110,
+    TRAP = 0b1111
+} opcode_t;
+
+typedef enum { F_POS = 1, F_ZERO = 2, F_NEG = 3 } cond_flag_t;
+
+void update_flags(uint16_t r) {
+    if (__stack[r] == 0) {
+        __stack[R_COND] = F_ZERO;
+    } else if (__stack[r] >> 15)  // a 1 in the left-most bit indicates negative
+    {
+        __stack[R_COND] = F_NEG;
+    } else {
+        __stack[R_COND] = F_POS;
+    }
+}
+
+uint16_t sign_extend(uint16_t x, int bit_count) {
+    if ((x >> (bit_count - 1)) & 1) {
+        x |= (0xFFFF << bit_count);
+    }
+    return x;
+}
 
 int main() {
 
@@ -30,23 +70,24 @@ int main() {
 
         switch (op_code) {
             case ADD: {
-              add_t* a = decode_add(code);
-              if (a->mode)
-              {
-                __stack[a->dst_r] = a->src_r1 + a->imme;
-              }
-              else
-              {
-                  __stack[a->dst_r] = a->src_r1 + a->src_r2;
-              }
-              printf("debug_lc-> %d\n", PRINT_CODE);
-              if (PRINT_CODE == 1) print_add(a);
-              update_flags(a->dst_r);
+                reg_t dest = (code >> 9) & 0x7;
+                reg_t sr1 = (code >> 6) & 0x7;
+                bool mode = (code >> 5) & 0x1;
 
-            }
-            break;
+                if (mode) {
+                    uint16_t val = sign_extend((code & 0x1F), 5);
+                    DEBUG_TRACE("OP_CODE_ADD dr: 0x%04x sr1: 0x%04x imme: 0x%04x\n", dest, sr1, val);
+                    __stack[dest] = __stack[sr1] + val;
+                } else {
+                    reg_t sr2 = code & 0x07;
+                    DEBUG_TRACE("OP_CODE_ADD dr: 0x%04x sr1: 0x%04x sr2: 0x%04x\n", dest, sr1, sr2);
+                    __stack[dest] = __stack[sr1] + __stack[sr2];
+                }
+
+                update_flags(dest);
+
+            } break;
             case AND: {
-                printf("AND with 0x%x\n", code);
                 reg_t dest = (code >> 9) & 0x07;
                 reg_t r0 = (code >> 6) & 0x07;
 
@@ -60,43 +101,38 @@ int main() {
                     __stack[dest] = __stack[r0] & __stack[r1];
                 }
 
-                printf("total: %d\n", __stack[dest]);
             } break;
             case NOT: {
-                printf("i am hear in NOT with 0x%x\n", code);
                 reg_t dest = (code >> 9) & 0x07;
-                reg_t r2 = (code >> 6) & 0x07;
+                reg_t sr1 = (code >> 6) & 0x07;
+                DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x sr1: 0x%04x\n", dest, sr1);
+                __stack[dest] = ~__stack[sr1];
 
-                __stack[dest] = ~__stack[r2];
-
-                // update_flags(dest);
-
-                printf("total: %d\n", __stack[dest]);
+                update_flags(dest);
             } break;
             case LD: {
                 reg_t dest = (code >> 9) & 0x07;
-                uint16_t address = sign_extend((code & 0x1FF), 9);
-                __stack[dest] = __stack[ip + address];
-                printf("dest-> 0x%04x, data-> 0x%04x\n", dest, __stack[dest]);
+                uint16_t address = ip + sign_extend((code & 0x1FF), 9);
+                DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
+                __stack[dest] = __stack[address];
             } break;
             case LDI: {
-                printf("LDA\n\n\n");
                 reg_t dest = (code >> 9) & 0x07;
-                uint16_t address = sign_extend((code & 0x1FF), 9);
-                address = __stack[ip + address];
+                uint16_t address = ip + sign_extend((code & 0x1FF), 9);
+                DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
+                address = __stack[address];
                 __stack[dest] = __stack[address];
-                printf("0x%04x\n", __stack[dest]);
             } break;
                 // setcc
             case LDR: {
                 reg_t dest = (code >> 9) & 0x07;
                 reg_t base = (code >> 6) & 0x07;
 
+                DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, base);
+
                 uint16_t address = sign_extend((code & 0x3F), 6);
 
                 __stack[dest] = __stack[__stack[base] + address];
-                printf("dest-> 0x%04x, address-> 0x%04x, __stack->0x%04x\n",
-                       dest, ip + address, __stack[dest]);
 
             }
             // setcc
@@ -104,9 +140,8 @@ int main() {
             case LEA: {
                 reg_t dest = (code >> 9) & 0x07;
                 uint16_t address = sign_extend((code & 0x1FF), 9);
+                DEBUG_TRACE("OP_CODE_LEA dr: 0x%04x address: 0x%04x\n", dest, address);
                 __stack[dest] = ip + address;
-                printf("dest-> 0x%04x, address-> 0x%04x\n", dest,
-                       __stack[dest]);
             }
             // setcc
             break;
@@ -149,12 +184,10 @@ int main() {
             case RES:
             default: {
                 running = false;
-                printf("illegal op code\n");
+                printf("%d\n", __stack[R3]);
             }
         }
     }
-
     return 0;
-
     // 01010000000001
 }
