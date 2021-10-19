@@ -74,11 +74,17 @@ int execute_instructions(uint16_t data, uint16_t size, start_address)
     while (running) {
         uint16_t code = __stack[ip++];
         int op_code = code >> 12;
+        reg_t dest = (code >> 9) & 0x07;
+        reg_t sr1 = (code >> 6) & 0x07;
+        bool mode = code & (code << 5);
+
 
         switch (op_code) {
             case ADD: {
                 reg_t dest = (code >> 9) & 0x7;
                 reg_t sr1 = (code >> 6) & 0x7;
+                reg_t sr2 = code & 0x07;
+
                 bool mode = (code >> 5) & 0x1;
 
                 if (mode) {
@@ -86,7 +92,6 @@ int execute_instructions(uint16_t data, uint16_t size, start_address)
                     DEBUG_TRACE("OP_CODE_ADD dr: 0x%04x sr1: 0x%04x imme: 0x%04x\n", dest, sr1, val);
                     __stack[dest] = __stack[sr1] + val;
                 } else {
-                    reg_t sr2 = code & 0x07;
                     DEBUG_TRACE("OP_CODE_ADD dr: 0x%04x sr1: 0x%04x sr2: 0x%04x\n", dest, sr1, sr2);
                     __stack[dest] = __stack[sr1] + __stack[sr2];
                 }
@@ -94,36 +99,28 @@ int execute_instructions(uint16_t data, uint16_t size, start_address)
 
             } break;
             case AND: {
-                reg_t dest = (code >> 9) & 0x07;
-                reg_t r0 = (code >> 6) & 0x07;
-
-                bool mode = code & (code << 5);
 
                 if (mode) {
-                    uint16_t val = code & 0x1F;
-                    __stack[dest] = r0 & val;
+                    uint16_t val = sign_extend(code & 0x1F, 5);
+                    __stack[dest] = __stack[sr1] & val;
                 } else {
-                    reg_t r1 = code & 0x1F;
-                    __stack[dest] = __stack[r0] & __stack[r1];
+                    __stack[dest] = __stack[sr10] & __stack[sr2];
                 }
 
             } break;
             case NOT: {
-                reg_t dest = (code >> 9) & 0x07;
-                reg_t sr1 = (code >> 6) & 0x07;
+
                 DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x sr1: 0x%04x\n", dest, sr1);
                 __stack[dest] = ~__stack[sr1];
 
                 update_flags(dest);
             } break;
             case LD: {
-                reg_t dest = (code >> 9) & 0x07;
                 uint16_t address = ip + sign_extend((code & 0x1FF), 9);
                 DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
                 __stack[dest] = __stack[address];
             } break;
             case LDI: {
-                reg_t dest = (code >> 9) & 0x07;
                 uint16_t address = ip + sign_extend((code & 0x1FF), 9);
                 DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
                 address = __stack[address];
@@ -131,20 +128,17 @@ int execute_instructions(uint16_t data, uint16_t size, start_address)
             } break;
                 // setcc
             case LDR: {
-                reg_t dest = (code >> 9) & 0x07;
-                reg_t base = (code >> 6) & 0x07;
 
                 DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, base);
 
                 uint16_t address = sign_extend((code & 0x3F), 6);
 
-                __stack[dest] = __stack[__stack[base] + address];
+                __stack[dest] = __stack[__stack[sr1] + address];
 
             }
             // setcc
             break;
             case LEA: {
-                reg_t dest = (code >> 9) & 0x07;
                 uint16_t address = sign_extend((code & 0x1FF), 9);
                 DEBUG_TRACE("OP_CODE_LEA dr: 0x%04x address: 0x%04x\n", dest, address);
                 __stack[dest] = ip + address;
@@ -167,23 +161,17 @@ int execute_instructions(uint16_t data, uint16_t size, start_address)
                 ip = __stack[R7];
             } break;
             case ST: {
-                reg_t r0 = (code >> 9) & 0x07;
                 uint16_t address = sign_extend(code & 0x1ff, 9);
-                __stack[ip + (address)] = __stack[r0];
+                __stack[ip + (address)] = __stack[sr1];
             } break;
             case STI: {
-                reg_t r0 = (code >> 9) & 0x07;
                 uint16_t address = sign_extend(code & 0x1ff, 9);
-                __stack[__stack[ip + (address)]] = __stack[r0];
+                __stack[__stack[ip + (address)]] = __stack[sr1];
 
             } break;
             case STR: {
-                reg_t dest = (code >> 9) & 0x07;
-                reg_t base = (code >> 6) & 0x07;
-
                 uint16_t address = sign_extend((code & 0x3F), 6);
-
-                __stack[dest] = __stack[__stack[base] + address];
+                __stack[dest] = __stack[__stack[sr1] + address];
 
             } break;
             case RES:
