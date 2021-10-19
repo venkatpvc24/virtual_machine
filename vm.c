@@ -1,6 +1,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+
+// #include "LC.h"
+// #include "utilities.h"
 
 #ifdef TRACE
     #define DEBUG_TRACE(...) (fprintf(stderr, __VA_ARGS__))
@@ -8,33 +12,35 @@
     #define DEBUG_TRACE(...)
 #endif
 
-uint16_t __stack[UINT16_MAX];
 
+typedef enum {
+    BR,
+    ADD,
+    LD,
+    ST,
+    JSR,
+    AND,
+    LDR,
+    STR,
+    RTI,
+    NOT,
+    LDI,
+    STI,
+    RET,
+    RES,
+    LEA,
+    TRAP
+} opcode_t;
+
+
+uint16_t __stack[UINT16_MAX];
 
 typedef enum { R0, R1, R2, R3, R4, R5, R6, R7, R_PC, R_COND, R_COUNT } reg_t;
 
-typedef enum {
-    BR = 0b0000,
-    ADD = 0b0001,
-    LD = 0b0010,
-    ST = 0b0011,
-    JSR = 0b0100,
-    AND = 0b0101,
-    LDR = 0b0110,
-    STR = 0b0111,
-    RTI = 0b1000,
-    NOT = 0b1001,
-    LDI = 0b1010,
-    STI = 0b1011,
-    RET = 0b1100,
-    RES = 0b1101,
-    LEA = 0b1110,
-    TRAP = 0b1111
-} opcode_t;
-
 typedef enum { F_POS = 1, F_ZERO = 2, F_NEG = 3 } cond_flag_t;
 
-void update_flags(uint16_t r) {
+void update_flags(uint16_t r)
+{
     if (__stack[r] == 0) {
         __stack[R_COND] = F_ZERO;
     } else if (__stack[r] >> 15)  // a 1 in the left-most bit indicates negative
@@ -45,20 +51,21 @@ void update_flags(uint16_t r) {
     }
 }
 
-uint16_t sign_extend(uint16_t x, int bit_count) {
+uint16_t sign_extend(uint16_t x, int bit_count)
+{
     if ((x >> (bit_count - 1)) & 1) {
         x |= (0xFFFF << bit_count);
     }
     return x;
 }
 
-int main() {
+int execute_instructions(uint16_t data, uint16_t size, start_address)
 
-    uint16_t data[] = {0x4801, 0xd000, 0x903f, 0x1022, 0x1620, 0xc1c0};
+    memset(__stack, 0, sizeof __stack);
 
-    int ip = 0x3000;
+    uint16_t ip = start_address;
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < size; i++) {
         __stack[ip + i] = data[i];
     }
 
@@ -83,7 +90,6 @@ int main() {
                     DEBUG_TRACE("OP_CODE_ADD dr: 0x%04x sr1: 0x%04x sr2: 0x%04x\n", dest, sr1, sr2);
                     __stack[dest] = __stack[sr1] + __stack[sr2];
                 }
-
                 update_flags(dest);
 
             } break;
@@ -159,7 +165,6 @@ int main() {
             break;
             case RET: {
                 ip = __stack[R7];
-                int test = __stack[R3];
             } break;
             case ST: {
                 reg_t r0 = (code >> 9) & 0x07;
