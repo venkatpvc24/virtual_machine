@@ -30,6 +30,10 @@ typedef enum {
     TRAP
 } opcode_t;
 
+int opcode_state(char c)
+{
+
+}
 
 uint16_t __stack[UINT16_MAX];
 

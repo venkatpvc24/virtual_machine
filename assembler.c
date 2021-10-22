@@ -13,6 +13,7 @@
 #define INVALID_EXPRESSION 5
 #define OUT_OF_RANGE_IMME9 6
 #define VM_SUCESS 7
+#define VM_VALID_NUMBER 8
 
 #ifdef TRACE
     #define DEBUG_TRACE(...) (fprintf(stderr, __VA_ARGS__))
@@ -69,12 +70,6 @@ typedef struct
     int address;
 } label_t;
 
-
-typedef struct
-{
-    char token[4][10];
-    uint8_t count;
-} tokens_t;
 
 
 int parse_number(const char* reg)
@@ -150,6 +145,10 @@ imme_reg_t* is_imme_r_reg(const char* imme)
 }
 
 
+/*
+    function to check is immediate number with in the offset limit
+    return out of range error if not, otherwise valid_number.
+*/
 
 int valid_number(const char* num, int offset)
 {
@@ -162,18 +161,12 @@ int valid_number(const char* num, int offset)
     {
     	case 5:
     	{
-    		if (val >= -16 && val <= 15)
-    		{
-    			return VALID_NUMBER
-    		}
+    		if (val >= -16 && val <= 15) return VM_VALID_NUMBER;
     		return OUT_OF_RANGE_IMME5;
     	}
     	case 9:
     	{
-    		if (val >= -256 && val <= 255)
-    		{
-    			return VALID_NUMBER
-    		}
+    		if (val >= -256 && val <= 255) return VM_VALID_NUMBER;
     		return OUT_OF_RANGE_IMME9;
     	}
     }
@@ -268,79 +261,65 @@ int dr_sr_imme5(int op, const char* op_code, const char* dreg, const char* reg, 
 
 
 
+typedef struct
+{
+    char* token[5];
+    int count;
+} tokens_t;
+
 void print_tokens(tokens_t* tokens)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < tokens->count; i++)
     {
-        if (strcmp(tokens->token[i], "") == 0)
-        ;
-        else
-            printf("token: %s, len: %lu\n", tokens->token[i], strlen(tokens->token[i]));
+        fprintf(stderr, "token: %s, len: %lu\n", tokens->token[i], strlen(tokens->token[i]));
     }
 }
 
 
 
-char buf[250];
-
-void tokenizer(const char* line, tokens_t* tokens)
+int is_end_of_str(char c)
 {
+    return c == '\0' || c == ' ' || c == ',' || c == ';' || c == ':' || c == '\n';
+}
 
-    for (int i = 0; i < 4; i++)
+int is_comment(char c)
+{
+    return c == ';';
+}
+
+//int is_valid_operand()
+
+int tokenizer(const char* code, tokens_t* tokens)
+{
+    //const char* code = "add r1, r2, r2 ; add register";
+
+    int i = 0, count = 0;
+
+    while(code[i] != '\0')
     {
-        memset(tokens->token[i], 0, 10);
-    }
+        char token[5];
+        int n = 0;
+        memset(token, 0, 5);
 
-    memset(buf, 0, 250);
+        if (is_comment(code[i]) == 1) break;
 
-    strcpy(buf, line);
-
-    uint8_t i = 0, count = 0, n = 0;
-
-    while(buf[i])
-    {
-        n = 0;
-        if (count == 0)
+        while(is_end_of_str(code[i]) != 1)
         {
-            while(buf[i] != ' ' && buf[i] != ':')
-            {
-                tokens->token[count][n++] = buf[i++];
-            }
-            tokens->token[count][n] = '\0';
-            count++;
-
-            if (strcmp(tokens->token[0], ".ORIG") == 0)
-            {
-                break;
-            }
-            if (buf[i] == ':' )
-            {
-                break;
-            }
-            if (tokens->token[0][0] == 'B' && tokens->token[0][1] == 'R')
-            {
-                uint8_t len = (uint8_t)strlen(tokens->token[0])+ 1;
-                printf("len: %d\n", len);
-                strcpy(tokens->token[count+1], buf + len);
-                printf("token: %s\n", tokens->token[count+1]);
-                break;
-            }
+            if (is_comment(code[i]) == 1) break;
+            token[n++] = code[i++];
         }
 
-        if (buf[i] == 'r' || buf[i] == 'R' || buf[i] == '#' || buf[i] == 'x')
+        token[n] = '\0';
+        if (strcmp(token, "") != 0)
         {
-            while(buf[i] != ' ' && buf[i] != ','
-                && buf[i] != ';' && buf[i] != '\0' && buf[i] != '\n')
-            {
-                tokens->token[count][n++] = buf[i++];
-            }
-            tokens->token[count][n] = '\0';
-            count++;
+            tokens->token[count] = malloc(sizeof(char) * n);
+            strcpy(tokens->token[count++], token);
         }
         i++;
     }
 
     tokens->count = count;
+
 }
 
 
@@ -352,23 +331,26 @@ int assembler(FILE* in)
     uint16_t bit = 0;
     uint16_t bin_data[UINT16_MAX];
 
-    label_t labels[100]; int lbl_len = 0;
+    label_t labels[100];
+    int len = 0;
 
     while(fgets(buf, 250, in))
     {
 
         if (strlen(buf) == 1) continue;
 
-        tokens_t* tokens = malloc(sizeof *tokens);
+        char* tokens[];
 
         tokenizer(buf, tokens);
 
         int op = get_op(tokens->token[0]);
 
-        if (op == -1 && tokens->token[0] != ".ORIG")
+        if (op == -1 && strcmp(tokens->token[0], ".orig") != 0)
         {
-            strcpy(labels[lbl_len++].label, tokens->token[0]);
-            labels[lbl_len].address = line;
+
+            strcpy(labels[len].label, tokens->token[0]);
+            printf("len: %d, label: %s\n", len, labels[len].label);
+            labels[len].address = line; len++;
             continue;
         }
 
@@ -385,8 +367,16 @@ int assembler(FILE* in)
                     bit |= (brnzp[1] == 'z' ? (1 << 10) : (0 << 10));
                     bit |= (brnzp[2] == 'p' ? (1 << 9) : (0 << 9));
 
-                    int address = labels[lbl_len].address - line;
+                    int address; // = labels[lbl_len].address - line
 
+                    for (int i = 0; i < len; i++)
+                    {
+                        if (strcmp(tokens->token[1], labels[i].label) == 0)
+                        {
+                            address = labels[i].address - line;
+                            break;
+                        }
+                    }
 
                     bit |= (address & 0x1FF);
                     bin_data[line] = bit;
@@ -396,7 +386,7 @@ int assembler(FILE* in)
                 break;
             case 1: // ADD
                 {
-                    if (tokens->count < 4)
+                    if (tokens->count < 3)
                     {
                         fprintf(stderr, "warning %d: add expression must expect 3 arguments but found %d\n", line, tokens->count - 1);
                         return EXIT_FAILURE;
@@ -457,14 +447,14 @@ int assembler(FILE* in)
                     }
 
 
-                    int address = labels[lbl_len].address - line;
+                    /*int address = labels[lbl_len].address - line;
                     printf("addres: %d\n", address);
 
                     bit = (4 << 12) + (1 << 11) + (address & 0x7FF);
 
                     bin_data[line] = bit;
 
-                    break;
+                    break;*/
                 }
             case 5: // AND
                 {
@@ -591,8 +581,9 @@ int assembler(FILE* in)
                 }
             case 14: // LEA
                 {
+                    print_tokens(tokens);
 
-                    if (tokens->count < 2)
+                    if (tokens->count < 3)
                     {
                         fprintf(stderr, "warning %d: LEA expression must expect 2 arguments but found %d\n", line, tokens->count);
                         return EXIT_FAILURE;
@@ -600,11 +591,11 @@ int assembler(FILE* in)
 
                     PC_Offset9(op, tokens->token[0],
                     		   tokens->token[1],
-                    		   tokens->token[2], line_count, &bit);
+                    		   tokens->token[2], line, &bit);
 
                     bin_data[line] = bit;
                     break;
-                }*/
+                }
             default:
             {
                 //printf("done\n");
@@ -613,6 +604,7 @@ int assembler(FILE* in)
 
         line++;
         memset(buf, 0, 5);
+
         free(tokens);
 
     }
@@ -620,4 +612,12 @@ int assembler(FILE* in)
 
    for ( int i = 0; i < 16; i++ ) printf("code: 0x%04x\n", bin_data[i]);
 
+
+
+}
+
+int main(int argc, char** argv)
+{
+    FILE* in = stdin;
+    assembler(in);
 }
