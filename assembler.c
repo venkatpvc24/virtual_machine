@@ -6,76 +6,18 @@
 #include <stdlib.h>
 
 
-#define INVALID_REG 1
-#define INVALID_OP 2
-#define INVALID_NUM_SYNTAX 3
-#define OUT_OF_RANGE_IMME5 4
-#define INVALID_EXPRESSION 5
-#define OUT_OF_RANGE_IMME9 6
-#define VM_SUCESS 7
-#define VM_VALID_NUMBER 8
-
-#ifdef TRACE
-    #define DEBUG_TRACE(...) (fprintf(stderr, __VA_ARGS__))
-#else
-    #define DEBUG_TRACE(...)
-#endif
-
-
-#define TO_INT(reg) (reg[1] - '0')
-
-#define CHECK_REG(reg) ((reg[0] == 'r' || reg[0] == 'R') && TO_INT(reg) >= 0 && TO_INT(reg) <= 7)
-
-#define IS_OFFSET5(num) ( (num >= -16 && num <= 15))
-
-#define IS_OFFSET9(num) ( (num >= -256 && num <= 255))
-
-
-
-int PC;
-
-static const char* arr[16] = {"br", "add", "ld", "st", "jsr", "and", "ldr",
-                  "str", "rti", "not", "ldi", "sti", "ret", "res", "lea", "trap"};
-
-
-/*
-    struct for counting arguments and record error
-*/
-
-typedef struct
-{
-    int error;
-    int count;
-} args_t;
-
-
-/*
-    struct to find imme or register and number
-*/
-
-
-typedef struct
-{
-    bool imme;
-    bool reg;
-    int value;
-} imme_reg_t;
-
-
-
-
-typedef struct
-{
-    char label[100];
-    int address;
-} label_t;
+#include "parser.h"
+#include "assembler.h"
 
 
 
 int parse_number(const char* reg)
 {
     int number;
-    sscanf(reg+1, "%d", &number);
+    char* end;
+    if (reg[0] == 'x') number = strtoul(reg + 1, &end, 16);
+    if (reg[0] == '#') number = strtoul(reg+1, &end, 10);
+    if (reg[0] == 'r') number = strtoul(reg+1, &end, 10);
     return number;
 }
 
@@ -94,7 +36,7 @@ int op_exists(char* s)
 }
 
 
-int get_op(char* s)
+/*int get_op(char* s)
 {
 
     for (size_t i = 0; i < strlen(s); i++) s[i] |= 32;
@@ -110,7 +52,7 @@ int get_op(char* s)
     }
 
     return -1;
-}
+}*/
 
 
 
@@ -195,7 +137,7 @@ int PC_Offset9(int op, const char* op_code, const char* r1, const char* offset, 
     }
 
     int address = parse_number(offset);
-    printf("address: %d\n", address);
+    //printf("address: %d\n", address);
     *bit = (op << 12) + (TO_INT(r1) << 9) + (address & 0x1FF);
     return 0;
 }
@@ -236,7 +178,7 @@ int dr_sr_imme5(int op, const char* op_code, const char* dreg, const char* reg, 
             fprintf(stderr, "warning %d: value must be between -16 and 15, but value is %d\n", line_count, type->value);
             return EXIT_FAILURE;
         }
-        *bit |= (op << 12) + (TO_INT(dreg) << 9) + (TO_INT(reg) << 6) + (1 << 5) + type->value;
+        *bit |= (op << 12) + (TO_INT(dreg) << 9) + (TO_INT(reg) << 6) + (1 << 5) + (type->value & 0x1F);
     }
 
     if (type->reg == true)
@@ -322,302 +264,205 @@ int tokenizer(const char* code, tokens_t* tokens)
 
 }
 
-
-int assembler(FILE* in)
+uint16_t find_address(char* label, node_t* node)
 {
-    char buf[250];
+    uint16_t address = 0;
+    node_t* list = node;
 
-    uint16_t line = 0;
+    for (size_t i = 0; i < strlen(label); i++) label[i] |= 32;
+    bool action = false;
+    while(list != NULL)
+    {
+        if (list->data->label != NULL && strcmp(list->data->type, "label") == 0)
+        {
+
+          //printf("type: %s, data->label: %s, address: %d\n", list->data->type, list->data->label, address);
+          if (strcmp(label, list->data->label) == 0) break;
+        }
+
+        if(strcmp(list->data->type, "label") != 0 && strcmp(list->data->type, "pesudo") != 0)
+        {
+          address++;
+        }
+
+      list = list->next;
+
+    }
+
+    return address;
+}
+
+int assembler(node_t** node)
+{
+    node_t* tmp = *node;
+
+    uint16_t line = 1, index = 0;
     uint16_t bit = 0;
     uint16_t bin_data[UINT16_MAX];
 
     label_t labels[100];
     int len = 0;
 
-    while(fgets(buf, 250, in))
-    {
-
-        if (strlen(buf) == 1) continue;
-
-        char* tokens[];
-
-        tokenizer(buf, tokens);
-
-        int op = get_op(tokens->token[0]);
-
-        if (op == -1 && strcmp(tokens->token[0], ".orig") != 0)
-        {
-
-            strcpy(labels[len].label, tokens->token[0]);
-            printf("len: %d, label: %s\n", len, labels[len].label);
-            labels[len].address = line; len++;
-            continue;
-        }
 
 
-        switch(op)
-        {
-            case 0:
+    while(tmp != NULL)
+      {
+          vm_t* vm = tmp->data;
+
+          if (strcmp(vm->type, "label") == 0)
+          {
+                tmp = tmp->next;
+                continue;
+          }
+
+          // char* op_code = (vm->type == NULL) ? vm->trap : vm->type;
+          uint16_t op = get_op(vm->type);
+
+          //printf("op: %d, type: %s\n", op, vm->type);
+
+
+          switch(op)
+          {
+              case 0: // BR
+                  {
+                      bit = 0;
+                      printf("brnzp: %s\n", vm->type);
+
+                      char c1 = vm->type[2];
+                      char c2 = vm->type[3];
+                      char c3 = vm->type[4];
+
+                      bit |= (c1 == 'n' ? (1 << 11) : (0 << 11));
+                      bit |= (c1 == 'z'  || c2 == 'z' ? (1 << 10) : (0 << 10));
+                      bit |= (c1 == 'p' || c2 == 'p' || c3 == 'p' ? (1 << 9) : (0 << 9));
+
+                      int address = find_address(vm->label, *node);
+
+
+                      //printf("label: %s, address: %d, line: %d, current: %d\n", vm->label, address, line, address - line);
+
+                      bit |= ((address - line) & 0x1FF);
+                      bin_data[index++] = bit;
+                      //printf("address: x%04x\n", bin_data[index] + 3017);
+                      line++;
+                  }
+                  break;
+              case state_and:
+              case state_add: // ADD
+                  {
+
+                      dr_sr_imme5(op, vm->type,
+                                      vm->dest,
+                                      vm->sr1,
+                                      vm->sr2, line, &bit);
+                      line++;
+                      bin_data[index++] = bit;
+
+                  }
+                  break;
+              case state_jsr: // JSR
+                  {
+                      bit = 0;
+                      int address = find_address(vm->label, *node);
+
+                      bin_data[index++] = bit;
+                      line++;
+                      break;
+                  }
+              case state_str:
+              case state_ldr: // LDR
+                  {
+
+                      PC_Offset5(op, vm->type,
+                                      vm->dest,
+                                      vm->sr1,
+                                      vm->sr2, line, &bit);
+                      line++;
+                      bin_data[index++] = bit;
+
+                      break;
+                  }
+              case state_not: // NOT
+                  {
+                      bit = 0;
+
+                      bit |= (9 << 12) + (TO_INT(vm->dest) << 9) + (TO_INT(vm->sr1) << 6) + 0x3F;
+                      line++;
+                      bin_data[index++] = bit;
+                      break;
+                  }
+              case state_ld:
+              case state_lea:
+              case state_st:
+              case state_ldi: // LDI
+              case state_sti: // STI
+                  {
+
+                      PC_Offset9(op, vm->type,
+                                     vm->dest,
+                                     vm->sr1, line, &bit);
+
+                      bin_data[index++] = bit;
+                      line++;
+                      break;
+                  }
+              case state_ret: // RET
+                  {
+                      bit = 0;
+                      bit |= (12 << 12) + 0 + (0xE << 5) + 0;
+                      bin_data[index++] = bit;
+                      line++;
+                      break;
+                  }
+              case state_trap: // RES
+                  {
+                      bit = 0xF000;
+
+                      if (strcmp(vm->trap, "getc") == 0) bit |= (0x20 & 0xFF);
+                      if (strcmp(vm->trap, "out") == 0) bit |= (0x21 & 0xFF);
+                      if (strcmp(vm->trap, "puts") == 0) bit |= (0x22 & 0xFF);
+                      if (strcmp(vm->trap, "in") == 0) bit |= (0x23 & 0xFF);
+                      if (strcmp(vm->trap, "halt") == 0) bit |= (0x25 & 0xFF);
+
+                      bin_data[index++] = bit;
+                      line++;
+                      break;
+                  }
+              case state_pesudo:
                 {
-                    bit = 0;
-                    char brnzp[3];
-                    strcpy(brnzp, tokens->token[0] + 2);
-
-                    bit |= (brnzp[0] == 'n' ? (1 << 11) : (0 << 11));
-                    bit |= (brnzp[1] == 'z' ? (1 << 10) : (0 << 10));
-                    bit |= (brnzp[2] == 'p' ? (1 << 9) : (0 << 9));
-
-                    int address; // = labels[lbl_len].address - line
-
-                    for (int i = 0; i < len; i++)
+                  if (strcmp(vm->pesudo, ".orig") != 0 || strcmp(vm->pesudo, ".end") != 0)
+                  {
+                    if (strcmp(vm->pesudo, ".fill") == 0 || strcmp(vm->pesudo, ".FILL") == 0)
                     {
-                        if (strcmp(tokens->token[1], labels[i].label) == 0)
-                        {
-                            address = labels[i].address - line;
-                            break;
-                        }
+                      //printf("number: %d", parse_number(vm->p_value));
+                      bin_data[index++] = parse_number(vm->p_value);
+                      line++;
                     }
 
-                    bit |= (address & 0x1FF);
-                    bin_data[line] = bit;
-                    line++;
-
-                }
-                break;
-            case 1: // ADD
-                {
-                    if (tokens->count < 3)
+                    if (strcmp(vm->pesudo, ".stringz") == 0 || strcmp(vm->pesudo, ".STRINGZ") == 0)
                     {
-                        fprintf(stderr, "warning %d: add expression must expect 3 arguments but found %d\n", line, tokens->count - 1);
-                        return EXIT_FAILURE;
+                      //printf("number: %d", parse_number(vm->p_value));
+                      for(size_t s = 0; s < strlen(vm->p_value); s++)
+                      {
+                        if (vm->p_value[s] != '"' ) bin_data[index++] = vm->p_value[s];
+                        line++;
+                      }
+                      bin_data[index++] = '\0';
                     }
 
-                    dr_sr_imme5(op, tokens->token[0],
-                                    tokens->token[1],
-                                    tokens->token[2],
-                                    tokens->token[3], line, &bit);
+                  }
 
-                    bin_data[line] = bit;
 
+                  break;
                 }
-                break;
-            case 2: // LD
-                {
+              default:
+              {
+                  //printf("done\n");
+              }
+          }
+          tmp = tmp->next;
+      }
+      printf("index: %d", index);
+   for ( int i = 0; i < index; i++ ) printf("ip: x%04x, code: 0x%04x\n", i + 12288, bin_data[i]);
 
-                    if (tokens->count < 2)
-                    {
-                        fprintf(stderr, "warning %d: LD expression must expect 2 arguments but found %d\n", line, tokens->count-1);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset9(op, tokens->token[0],
-                                   tokens->token[1],
-                                   tokens->token[2], line, &bit);
-
-                    bin_data[line] = bit;
-                }
-
-                break;
-            case 3: // ST
-                {
-
-                    if (tokens->count < 2)
-                    {
-                        fprintf(stderr, "warning %d: ST expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset9(op, tokens->token[0],
-                                   tokens->token[1],
-                                   tokens->token[2], line, &bit);
-
-                    bin_data[line] = bit;
-
-                }
-                break;
-            case 4: // JSR
-                {
-                    bit = 0;
-
-                    if (tokens->count < 1)
-                    {
-                        fprintf(stderr, "warning %d: JSR expression must expect 1 arguments but found %d\n",
-                                line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-
-                    /*int address = labels[lbl_len].address - line;
-                    printf("addres: %d\n", address);
-
-                    bit = (4 << 12) + (1 << 11) + (address & 0x7FF);
-
-                    bin_data[line] = bit;
-
-                    break;*/
-                }
-            case 5: // AND
-                {
-                    if (tokens->count < 4)
-                    {
-                        fprintf(stderr, "warning %d: AND expression must expect 3 arguments but found %d\n",
-                                line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-
-                    dr_sr_imme5(op, tokens->token[0],
-                                    tokens->token[1],
-                                    tokens->token[2],
-                                    tokens->token[3], line, &bit);
-
-                    bin_data[line] = bit;
-                    break;
-                }
-            case 6: // LDR
-                {
-                    if (tokens->count < 3)
-                    {
-                        fprintf(stderr, "warning %d: LDR expression must expect 3 arguments but found %d\n",
-                              line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset5(op, tokens->token[0],
-                                   tokens->token[1],
-                                   tokens->token[2],
-                                   tokens->token[3], line, &bit);
-
-                    bin_data[line] = bit;
-
-                    break;
-                }
-            case 7: // STR
-                {
-
-                    if (tokens->count < 4)
-                    {
-                        fprintf(stderr, "warning %d: STR expression must expect 3 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-
-
-                    PC_Offset5(op, tokens->token[0],
-                    		   tokens->token[1],
-                    		   tokens->token[2],
-                    		   tokens->token[3], line, &bit);
-
-                    bin_data[line] = bit;
-
-                    break;
-
-                }
-            case 9: // NOT
-                {
-                    bit = 0;
-
-                    if (tokens->count < 3)
-                    {
-                        fprintf(stderr, "warning %d: NOT expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    bit |= (9 << 12) + (TO_INT(tokens->token[1]) << 9) + (TO_INT(tokens->token[2]) << 6) + 0x3F;
-
-                    bin_data[line] = bit;
-                    break;
-                }
-            case 10: // LDI
-                {
-
-                    if (tokens->count < 2)
-                    {
-                        fprintf(stderr, "warning %d: LDI expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset9(op, tokens->token[0],
-                    		   tokens->token[1],
-                    		   tokens->token[2], line, &bit);
-
-                    bin_data[line] = bit;
-                    break;
-                }
-            case 11: // STI
-                {
-
-                    if (tokens->count < 2)
-                    {
-                        fprintf(stderr, "warning %d: STI expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset9(op, tokens->token[0],
-                    		   tokens->token[1],
-                    		   tokens->token[2], line, &bit);
-
-                    bin_data[line] = bit;
-                    break;
-                }
-            case 12: // RET
-                {
-                    bit = 0;
-
-                    if (tokens->count < 2)
-                    {
-                        fprintf(stderr, "warning %d: STI expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    bit |= (12 << 12) + 0 + (0xE << 5) + 0;
-                    bin_data[line] = bit;
-
-                    break;
-                }
-            case 13: // RES
-                {
-                    break;
-                }
-            case 14: // LEA
-                {
-                    print_tokens(tokens);
-
-                    if (tokens->count < 3)
-                    {
-                        fprintf(stderr, "warning %d: LEA expression must expect 2 arguments but found %d\n", line, tokens->count);
-                        return EXIT_FAILURE;
-                    }
-
-                    PC_Offset9(op, tokens->token[0],
-                    		   tokens->token[1],
-                    		   tokens->token[2], line, &bit);
-
-                    bin_data[line] = bit;
-                    break;
-                }
-            default:
-            {
-                //printf("done\n");
-            }
-        }
-
-        line++;
-        memset(buf, 0, 5);
-
-        free(tokens);
-
-    }
-
-
-   for ( int i = 0; i < 16; i++ ) printf("code: 0x%04x\n", bin_data[i]);
-
-
-
-}
-
-int main(int argc, char** argv)
-{
-    FILE* in = stdin;
-    assembler(in);
 }

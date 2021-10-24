@@ -4,21 +4,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
-#define LBL_SIZE 20
+
+#include "parser.h"
 
 /*
 
-Label only accpets 20 chars at this moment; you can change -DLBL_SIZE
-
-statements must end with ';' like in c;
-
-you can add your comment after semicolon
+    caller is responsible for freeing memory;
 
 */
 
+
 static char currentToken[4096];
 static size_t currentTokenLength;
+
+static const char* op_codes[16] = {"br", "add", "ld", "st", "jsr", "and", "ldr",
+                  "str", "rti", "not", "ldi", "sti", "ret", "res", "lea", "trap"};
+
+static const char* traps[5] = {"puts", "getc", "halt", "in", "out"};
 
 static void add_token(char c) {
     // printf("token: %c", c);
@@ -27,108 +31,27 @@ static void add_token(char c) {
     }
 }
 
-char arr[100];
+char print_arr[100];
 
-static void print_token(void) {
-    sprintf(arr, "Token: >>>%.*s<<<\n", (int)currentTokenLength, currentToken);
-    printf("%s", arr);
-    currentTokenLength = 0;
-}
-
-typedef enum {
-    state_error,
-    state_start_origin,
-    state_origin,
-    state_get_memory_location,
-    state_start_origin_parser,
-    state_end_origin_parser,
-    state_start_number_parser,
-    state_end_number_parser,
-    state_end_line_parser,
-    state_start_add_parser,
-    state_start_and_parser,
-    state_end_add_parser,
-    state_end_and_parser,
-    state_start_comment_line,
-    state_end_comment_line,
-    state_add_register_first,
-    state_add_register_second,
-    state_add_register_third,
-    state_add_register_end,
-    state_and_register_first,
-    state_and_register_second,
-    state_and_register_third,
-    state_next_line,
-    state_start_label,
-    state_end_label,
-    state_start_br_parser,
-    state_end_br_parser,
-    state_get_br_token,
-    state_start_trap,
-    state_end_trap,
-    state_start_lea_parser,
-    state_start_ld_parser,
-    state_ld_register_first,
-    state_ld_register_second,
-    state_lea_register_first,
-    state_lea_register_second,
-    state_start_not_parser,
-    state_not_register_first,
-    state_not_register_second,
-    state_not_register_third,
-    state_start_ldr_parser,
-    state_ldr_register_first,
-    state_ldr_register_second,
-    state_ldr_register_third,
-    state_start_jmp_parser,
-    state_get_jmp_token,
-    state_start_jsr_parser,
-    state_get_jsr_token,
-    state_start_ret_parser,
-    state_get_ret_token,
-    state_start_ldi_parser,
-    state_ldi_register_first,
-    state_ldi_register_second,
-    state_start_st_parser,
-    state_st_register_first,
-    state_st_register_second,
-    state_start_sti_parser,
-    state_sti_register_first,
-    state_sti_register_second,
-    state_start_str_parser,
-    state_str_register_first,
-    state_str_register_second,
-    state_str_register_third,
-    state_end_parser
-} State;
-
-
-
-typedef struct {
-    char* origin;
-    char* type;
-    char* dest;
-    char* sr1;
-    char* sr2;
-    char* sr3;
-    char* imme;
-    char* offset5;
-    char* offset9;
-    char* offset11;
-    char* label;
-    char* trap;
-} vm_t;
-
-struct node {
-    vm_t* data;
-    struct node* next;
-};
-
-typedef struct node node_t;
+/*
+  static void print_token(void) {
+      sprintf(print_arr, "%.*s", (int)currentTokenLength, currentToken);
+      printf("print_arr: %s\n", print_arr);
+      currentTokenLength = 0;
+  }
+*/
 
 void append(node_t** node, vm_t** data) {
 
     node_t* new_node = malloc(sizeof *new_node);
+
+    if (new_node == NULL)
+    {
+        printf("error number: %d\n", errno);
+        printf("error: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     new_node->data = *data;
     new_node->next = NULL;
 
@@ -149,7 +72,7 @@ void vm_print(vm_t* vm);
 void node_print(node_t** node)
 {
     node_t* tmp = *node;
-    // vm_print(tmp->data);
+    // vm_print(tmp.data);
     while(tmp != NULL)
     {
         vm_print(tmp->data);
@@ -166,792 +89,513 @@ vm_t* vm_init(void) {
     vm->dest = NULL;
     vm->sr1 = NULL;
     vm->sr2 = NULL;
-    vm->sr3 = NULL;
-    vm->imme = NULL;
-    vm->offset5 = NULL;
-    vm->offset9 = NULL;
-    vm->offset11 = NULL;
     vm->label = NULL;
     vm->trap = NULL;
+    vm->pesudo = NULL;
+    vm->p_value = NULL;
     return vm;
 }
 
 void vm_print(vm_t* vm) {
 
     printf("************** %s *************\n\n", vm->type);
-    printf("vm->origin   : %s\n", vm->origin);
-    printf("vm->type     : %s\n", vm->type);
-    printf("vm->dest     : %s\n", vm->dest);
-    printf("vm->sr1      : %s\n", vm->sr1);
-    printf("vm->sr2      : %s\n", vm->sr2);
-    printf("vm->sr3      : %s\n", vm->sr3);
-    printf("vm->imme     : %s\n", vm->imme);
-    printf("vm->offset5  : %s\n", vm->offset5);
-    printf("vm->offset9  : %s\n", vm->offset9);
-    printf("vm->offset11 : %s\n", vm->offset11);
-    printf("vm->label    : %s\n", vm->label);
-    printf("vm->trap     : %s\n\n", vm->trap);
+    printf("vm.origin   : %s\n", vm->origin);
+    printf("vm.type     : %s\n", vm->type);
+    printf("vm.dest     : %s\n", vm->dest);
+    printf("vm.sr1      : %s\n", vm->sr1);
+    printf("vm.sr2      : %s\n", vm->sr2);
+    printf("vm.label    : %s\n", vm->label);
+    printf("vm.pesudo   : %s\n", vm->pesudo);
+    printf("vm.p_value  : %s\n", vm->p_value);
+    printf("vm.trap     : %s\n\n", vm->trap);
+
 
 }
 
 
-void copy_string(char** in, int size) {
+void copy_string(char** in, int size, const char* str) {
+
     *in = malloc(sizeof(char) * size);
+
+    if (*in == NULL)
+    {
+        printf("error no: %d\n", errno);
+        printf("error: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     memset(*in, 0, size);
-    sprintf(*in, "%.*s", (int)currentTokenLength, currentToken);
+
+    if (str == NULL)
+    {
+        sprintf(*in, "%.*s", (int)currentTokenLength, currentToken);
+    }
+    else
+    {
+        strcpy(*in, str);
+    }
     currentTokenLength = 0;
 }
 
+int get_op(char* op);
+int get_trap(char* op);
+
+int check_string(char* arr)
+{
+    //printf("trap: %s\n", arr);
+    if (get_op(arr) >= 0)
+    {
+        //printf("op_true: %d\n", 1);
+        return state_start_opcode_parser;
+    }
+
+    if(get_trap(arr) >= 0)
+    {
+        return state_start_trap_parser;
+    }
+
+    return state_start_label_parser;
+}
 
 int ltrim(const char* str)
 {
     int len = 0;
-    for (; *str == ' '; str++, len++) {}
+    while(isspace(*(str++))) len++;
     return len;
 }
 
-int parser(void) {
+/*
 
-    node_t* list = NULL;
-    vm_t* vm = vm_init();
-    char buffer[300];
+    to-do:
+        check is op_code has lower letters or upper
+*/
 
-    while( fgets(buffer, 300, stdin) != NULL)
+
+int count_chars(char* str)
+{
+
+    int len = 0;
+    for (; *str == '\0'; str++) len++;
+
+    return len;
+}
+
+int get_op(char* op_code)
+{
+    const char* op_codes[17] = {"br", "add", "ld", "st", "jsr", "and", "ldr",
+                  "str", "rti", "not", "ldi", "sti", "ret", "res", "lea", "trap", "pesudo"};
+
+    if (isupper(op_code[0]))
     {
-
-        if (buffer[0] == ';')
+        for(size_t i = 0; i < strlen(op_code); i++)
         {
-            printf("i am hear\n");
-            memset(buffer, 0, 300);
-            continue;
+            if (op_code[i] != 'n' || op_code[i] != 'z' || op_code[i] != 'p')
+                op_code[i] |= 32;
         }
+    }
+    if (op_code[0] == 'b' && op_code[1] == 'r') return 0;
 
-        if (strlen(buffer) == 1 ) continue;
+    for ( int i = 0; i < 17; i++)
+    {
+        //printf("op_code: %s\n", op_codes[i]);
+        if (strcmp(op_code, op_codes[i]) == 0)
+        {
+            //printf("op_code: %s, op_codes: %s i: %d\n", op_code, op_codes[i], i);
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+int get_trap(char* trap)
+{
+    int len = count_chars(trap);
+    const char* traps[5] = {"puts", "getc", "halt", "in", "out"};
+    if (isupper(trap[0]))
+    {
+        for(int i = 0; i < len; i++) trap[i] |= 32;
+    }
+
+    for(int i = 0; i < 5; i++)
+    {
+        if (strcmp(trap, traps[i]) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+/*
+    pass linked list node to parser
+    and parser will fill with tokens
+*/
+
+node_t* parser(const char* filename) {
+
+    vm_t* vm = vm_init();
+    node_t* list = NULL;
+    char buffer[300];
+    FILE* in = fopen(filename, "r");
+    if (in == NULL)
+    {
+      printf("error no: %d\n", errno);
+      printf("error: %s\n", strerror(errno));
+    }
+    while(fgets(buffer, 300, in))
+    {
+        //printf("buffer: %s\n", buffer);
+       if (strlen(buffer) == 1) continue;
 
         State state = state_start_origin;
         int offset = ltrim(buffer);
-        printf("buf: %s", buffer);
 
         while(state != state_next_line)
         {
             int c = buffer[offset++];
-            bool action = false;
-            if (c == '_') state = state_start_label;
-            if (c == '$') state = state_start_trap;
+            char* str;
 
             switch(state)
             {
-                case state_start_trap:
-                    state = state_next_line;
-                case state_start_label:
-                    state = state_next_line;
+                case state_error:
+                  printf("error\n");
+                  break;
                 case state_start_origin:
-                    if (c == '\n' || c == '\r' || c == ' ') break;
+                    if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';')
+                    {
+
+                        str = malloc(sizeof(char) * LBL_SIZE);
+                        sprintf(str, "%.*s", (int)currentTokenLength, currentToken);
+                        currentTokenLength = 0;
+                        //printf("str: %s, c: %c\n", str, c);
+                        if (str[0] == '.')
+                        {
+                            copy_string(&vm->pesudo, LBL_SIZE, str);
+                            copy_string(&vm->type, LBL_SIZE, "pesudo");
+                            append(&list, &vm);
+                            vm = vm_init();
+                            state = state_next_line;
+                            break;
+                        }
+                        //printf("first str: %s\n", str);
+                        state = check_string(str);
+                        break;
+                    }
+                    add_token(c);
+                    break;
+                case state_start_label_parser:
+
+                        copy_string(&vm->label, LBL_SIZE, str);
+                        copy_string(&vm->type, LBL_SIZE, "label");
+                        if (c == '\t' || c == '\n' || c == '\r' || c == ';')
+                        {
+                          printf("test: %s\n", str);
+                          append(&list, &vm);
+                          vm = vm_init();
+                          state = state_next_line;
+                          break;
+                        }
                     if (c == '.')
                     {
-                        state = state_start_origin_parser;
-                    }
-                    if (c == 'a' || c == 'A')
-                    {
-                        state = state_start_add_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'n'  || c == 'N')
-                    {
-                        state = state_start_not_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'b' || c == 'B')
-                    {
-                        state = state_start_br_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'l' || c == 'L')
-                    {
+                      pesudo_t pesudo = start_pesudo_parser;
+                      bool is_string = false;
+                      size_t str_len = 0;
+                      while(pesudo != next_line)
+                      {
+                          switch(pesudo)
+                          {
+                              case start_pesudo_parser:
+                              {
+                                  if (c == ' ')
+                                  {
 
-                        state = state_start_lea_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'j' || c == 'J')
-                    {
-                        state = state_start_jmp_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'r' || c == 'R'){
-                        state = state_start_ret_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 's' || c == 'S')
-                    {
-                        state = state_start_st_parser;
-                        add_token(c);
-                        break;
+                                      copy_string(&vm->pesudo, LBL_SIZE, NULL);
+                                      copy_string(&vm->type, LBL_SIZE, "pesudo");
+                                      if (strcmp(vm->pesudo, ".stringz") == 0 || strcmp(vm->pesudo, ".STRINGZ") == 0)
+                                      {
+                                          is_string = true;
+                                      }
+                                      pesudo = start_p_value_parser;
+
+                                      break;
+                                  }
+
+                                  add_token(c);
+                                  break;
+                              }
+                              case start_p_value_parser:
+                              {
+                                  if (is_string) str_len++;
+                                  if (c == '\t' || c == '\n' || c == '\r' || c == ';')
+                                  {
+                                      //char* .stringz = malloc(sizeof(char) * str_len);
+                                      copy_string(&vm->p_value, str_len, NULL);
+                                      append(&list, &vm);
+                                      vm = vm_init();
+                                      state = state_next_line;
+                                      break;
+                                  }
+
+                                  add_token(c);
+                                  break;
+                              }
+                          }
+                          c = buffer[offset++];
+
+                            if (state == state_next_line)
+                            {
+                                break;
+                            }
+
+                        }
                     }
                     break;
-
-                case state_start_comment_line:
-                    // printf("comment: %c", c);
-                    if (c == '\r' || c == '\n')
-                    {
+                case state_start_trap_parser:
                         state = state_next_line;
-                    }
-                    break;
-                case state_start_origin_parser:
-                    if (c == '\n' || c == '\r')
-                    {
-                        fprintf(stderr, "orig must memory address to start program\n");
-                        return EXIT_FAILURE;
-                    }
-                    if (c == ' ')
-                    {
-                        state = state_get_memory_location;
-                        copy_string(&vm->origin, 5);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_get_memory_location:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_start_comment_line;
-                        copy_string(&vm->label, LBL_SIZE);
+                        printf("trap: %s\n", str);
+                        copy_string(&vm->trap, LBL_SIZE, str);
+                        copy_string(&vm->type, LBL_SIZE, "trap");
                         append(&list, &vm);
                         vm = vm_init();
                         break;
+                case state_start_opcode_parser:
+                {
+                    op_codes_t op_state = get_op(str);
+                    copy_string(&vm->type, LBL_SIZE, str);
+                    while(state != state_next_line)
+                    {
+                        switch(op_state)
+                        {
+                            case state_add:
+                                // printf("op_state str: %s\n", str);
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_and:
+                                //printf("op_state str: %s\n", str);
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_br:
+                                if (c == '\t' || c == '\n' || c == '\r' || c == ';')
+                                {
+                                    copy_string(&vm->label, LBL_SIZE, NULL);
+                                    append(&list, &vm);
+                                    vm = vm_init();
+                                    state = state_next_line;
+                                    break;
+                                }
+                                if (c == ' ')
+                                {break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_ld:
+                                if (c == '\n' || c == '\r' || c == ';')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_st:
+                                if (c == '\n' || c == '\r' || c == ';')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_jsr:
+                                if (c == '\t' || c == '\n' || c == '\r' || c == ';')
+                                {
+                                    copy_string(&vm->label, LBL_SIZE, NULL);
+                                    append(&list, &vm);
+                                    vm = vm_init();
+                                    state = state_next_line;
+                                    break;
+                                }
+                                if (c == ' ') break;
+                                add_token(c);
+                                break;
+                            case state_ldr:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_str:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_not:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_ldi:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_sti:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_ret:
+                                    state = state_next_line;
+                                    currentTokenLength = 0;
+                                    append(&list, &vm);
+                                    vm = vm_init();
+                                    break;
+                            case state_lea:
+                                if (c == '\n' || c == '\r')
+                                {
+                                    state = state_error;
+                                }
+                                if (c == ',')
+                                {
+                                    copy_string(&vm->dest, 3, NULL);
+                                    op_state = state_second_register;
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_second_register:
+                                if (c == ';' || c == '\n' || c == '\r' || c == '\t')
+                                {
+                                    state = state_next_line;
+                                    if (str && (strcmp(str, "lea") == 0 ||
+                                                strcmp(str, "ld") == 0  ||
+                                                strcmp(str, "st") == 0  ||
+                                                strcmp(str, "not") == 0 ||
+                                                strcmp(str, "sti") == 0 ||
+                                                strcmp(str, "ldi") == 0))
+                                    {
+                                        copy_string(&vm->sr1, LBL_SIZE, NULL);
+                                        append(&list, &vm);
+                                        vm = vm_init();
+                                    }
+                                    break;
+                                }
+                                if (c == ' ') break;
+                                if (c == ',')
+                                {
+                                    op_state = state_third_register;
+                                    copy_string(&vm->sr1, 3, NULL);
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            case state_third_register:
+                                if (c == ',')
+                                {
+                                    state = state_error;
+                                    break;
+                                }
+                                if (c == ' ') break;
+                                if (c == ';' || c == '\n' || c == '\r' || c == '\t')
+                                {
+                                    state = state_next_line;
+                                    copy_string(&vm->sr2, LBL_SIZE, NULL);
+                                    append(&list, &vm);
+                                    vm = vm_init();
+                                    break;
+                                }
+                                add_token(c);
+                                break;
+                            default:
+                                state = state_next_line;
+                                break;
+                            }
+                            c = buffer[offset++];
                     }
-                    add_token(c);
                     break;
-
-                /*******************************************/
-                            // ADD //
-                /**********************************************/
-
-                case state_start_add_parser:
-                    if (c == 'n' || c == 'N')
-                    {
-                        state = state_start_and_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == ' ')
-                    {
-                        state = state_add_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_add_register_first:
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_add_register_second;
-                        copy_string(&vm->dest, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_add_register_second:
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_add_register_third;
-                        copy_string(&vm->sr1, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_add_register_third:
-                    if (c == ',')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr2, 3);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // AND //
-                **********************************************/
-
-                case state_start_and_parser:
-                    if (c == ' ')
-                    {
-                        state = state_and_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_and_register_first:
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_and_register_second;
-                        copy_string(&vm->dest, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_and_register_second:
-
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        fprintf(stderr, "warning: and must have 3 arguments\n");
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_and_register_third;
-                        copy_string(&vm->sr1, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_and_register_third:
-                    if (c == ',')
-                    {
-                        state = state_error;
-                        fprintf(stderr, "syntax error extra comma a the end of third register/imme5\n");
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr2, 3);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c);
-                    break;
-
-
-
-                /*******************************************
-                            // BR OP_CODE //
-                **********************************************/
-
-                case state_start_br_parser:
-                    if (c == ' ')
-                    {
-                        state = state_get_br_token;
-                        copy_string(&vm->type, 6);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_get_br_token:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->label, LBL_SIZE);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-
-                /*******************************************
-                            // JUMP OP_CODE //
-                **********************************************/
-
-                case state_start_jmp_parser:
-                    if (c == 's' || c == 'S')
-                    {
-                        state = state_start_jsr_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == ' ')
-                    {
-                        state = state_get_jmp_token;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_get_jmp_token:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line; //state_start_comment_line;
-                        copy_string(&vm->label, LBL_SIZE);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // LD OP_CODE //
-                **********************************************/
-
-                case state_start_ld_parser:
-                    if (c == 'r' || c == 'R')
-                    {
-                        state = state_start_ldr_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'i' || c == 'I')
-                    {
-                        state = state_start_ldi_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == ' ')
-                    {
-                        state = state_ld_register_first;
-                        copy_string(&vm->type, 3);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_ld_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_ld_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c);
-                    break;
-                case state_ld_register_second:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr1, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-
-                /*******************************************/
-                            // NOT //
-                /**********************************************/
-
-                case state_start_not_parser:
-                    if (c == ' ')
-                    {
-                        state = state_not_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_not_register_first:
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_not_register_second;
-                        copy_string(&vm->dest, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_not_register_second:
-                    if (c == '\n' || c == '\r')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_not_register_third;
-                        copy_string(&vm->sr1, 3);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_not_register_third:
-                    if (c == ',')
-                    {
-                        state = state_error;
-                        break;
-                    }
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr2, 3);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // LEA OP_CODE //
-                **********************************************/
-
-                case state_start_lea_parser:
-                    if (c == 'd' || c == 'D')
-                    {
-                        state = state_start_ld_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == '\t') break;
-                    if (c == ' ')
-                    {
-                        state = state_lea_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_lea_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_lea_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c);
-                    break;
-                case state_lea_register_second:
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_start_comment_line;
-                        copy_string(&vm->sr1, 3);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // LDR OP_CODE //
-                **********************************************/
-
-                case state_start_ldr_parser:
-                    if (c == ' ')
-                    {
-                        state = state_ldr_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_ldr_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_ldr_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c); break;
-                case state_ldr_register_second:
-                    if (c == ' ') break;
-                    if (c  == ',')
-                    {
-                        state = state_ldr_register_third;
-                        copy_string(&vm->sr1, 3);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_ldr_register_third:
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr2, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c); break;
-
-                case state_start_jsr_parser:
-                    if (c == ' ')
-                    {
-                        state = state_get_jsr_token;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_get_jsr_token:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line; //state_start_comment_line;
-                        copy_string(&vm->label, LBL_SIZE);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-
-                /*******************************************
-                            // LDI OP_CODE //
-                **********************************************/
-
-                case state_start_ldi_parser:
-                    if (c == ' ')
-                    {
-                        state = state_ldi_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_ldi_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_ldi_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c);
-                    break;
-                case state_ldi_register_second:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr1, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-
-                /*******************************************
-                            // ST OP_CODE //
-                **********************************************/
-
-                case state_start_st_parser:
-                    if (c == 'i' || c == 'I')
-                    {
-                        state = state_start_sti_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == 'r' || c == 'R')
-                    {
-                        state = state_start_str_parser;
-                        add_token(c);
-                        break;
-                    }
-                    if (c == ' ')
-                    {
-                        state = state_st_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_st_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_st_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c);
-                    break;
-                case state_st_register_second:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr1, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // STI OP_CODE //
-                **********************************************/
-
-                case state_start_sti_parser:
-                    if (c == ' ')
-                    {
-                        state = state_sti_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_sti_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_sti_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c);
-                    break;
-                case state_sti_register_second:
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr1, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-                /*******************************************
-                            // STR OP_CODE //
-                **********************************************/
-
-                case state_start_str_parser:
-                    if (c == ' ')
-                    {
-                        state = state_str_register_first;
-                        copy_string(&vm->type, 4);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_str_register_first:
-                    if (c == ' ') break;
-                    if (c == ',')
-                    {
-                        state = state_str_register_second;
-                        copy_string(&vm->dest, 3); break;
-                    }
-                    add_token(c); break;
-                case state_str_register_second:
-                    if (c == ' ') break;
-                    if (c  == ',')
-                    {
-                        state = state_str_register_third;
-                        copy_string(&vm->sr1, 3);
-                        break;
-                    }
-                    add_token(c); break;
-                case state_str_register_third:
-                    if (c == ' ') break;
-                    if (c == ';' || c == '\n' || c == '\r' || c == '\t')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->sr2, 20);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    add_token(c); break;
-
                 case state_next_line:
                     break;
-
-                case state_start_ret_parser:
-                    if (c == ' ')
-                    {
-                        state = state_get_ret_token;
-                        copy_string(&vm->type, 6);
-                        break;
-                    }
-                    add_token(c);
-                    break;
-                case state_get_ret_token:
-                    if (c == ';')
-                    {
-                        state = state_next_line;
-                        copy_string(&vm->label, LBL_SIZE);
-                        append(&list, &vm);
-                        vm = vm_init();
-                        break;
-                    }
-                    if (c == ' ') break;
-                    add_token(c);
-                    break;
-
-
-                case state_error:
-                    printf("error\n");
-                    return -1;
             }
+          }
             if (state == state_next_line)
             {
-                //printf("yes i am hear\n");
                 memset(buffer, 0, 300);
                 break;
             }
         }
     }
-    char* ptr = NULL;
-
-    printf("sizeof vm: %lu\n", sizeof(ptr));
-
-    node_print(&list);
-    //vm_print(vm);
+    //node_print(&list);
+    //free(in);
+    return list;
 }
-int main(int argc, char** argv) {
-    const char* code[4] = {".orig x3000  ; Starting address.",
-                           "lea r0, #3  ; Load address of msg0 into r0",
-                           "lea r0, #1	; Load address of msg1 into r0."};
-
-    return parser();
-}
-
-/*
-
-lea r0, msg0  ; Load address of msg0 into r0.
-puts  ; Print contents of r0 (msg0).
-lea r0, msg1	; Load address of msg1 into r0.
-puts  ; Print contents of r0 (msg1 string).
-
-lea r2, neg97   ; Load address of neg97 into r2.
-ldr r2, r2, #0  ; Load contents of address in r2, into r2 (r2 now holds -97).
-.end
-
-*/
