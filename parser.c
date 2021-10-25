@@ -224,6 +224,7 @@ static int vm_get_trap(char* trap) {
     and parser will fill with tokens
 */
 
+//EMSCRIPTEN_KEEPALIVE
 node_t* parser(const char* filename) {
     vm_t* vm = vm_init();
     node_t* list = NULL;
@@ -282,7 +283,7 @@ node_t* parser(const char* filename) {
                     }
                     if (c == '.' || str[0] == '.') {
                         pesudo_t pesudo = start_pesudo_parser;
-                        while (pesudo != next_line) {
+                        while (state != state_next_line) {
                             switch (pesudo) {
                                 case start_pesudo_parser: {
                                     if (c == ' ' && str[0] != '.') {
@@ -425,7 +426,7 @@ node_t* parser(const char* filename) {
             }
         }
     }
-    node_print(&list);
+    //node_print(&list);
     // free(in);
     return list;
 }

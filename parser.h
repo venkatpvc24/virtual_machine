@@ -53,7 +53,7 @@ typedef enum {
     state_start_trap_parser
 } state;
 
-typedef enum { start_pesudo_parser, start_p_value_parser, next_line } pesudo_t;
+typedef enum { start_pesudo_parser, start_p_value_parser } pesudo_t;
 
 typedef struct {
     char* origin;

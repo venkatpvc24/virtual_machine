@@ -2,12 +2,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 // #include "LC.h"
 // #include "utilities.h"
 
 #include "vm.h"
 
+static uint16_t __stack[UINT16_MAX];
 
 static void update_flags(uint16_t r)
 {
@@ -29,7 +31,13 @@ static uint16_t sign_extend(uint16_t x, int bit_count)
     return x;
 }
 
-int execute_instructions(uint16_t* data, uint16_t size, start_address)
+
+// execute_instructions(node_t* data, uint16_t size, uint16_t address);
+
+int execute_instructions(uint16_t* data, uint16_t size, uint16_t start_address)
+{
+
+
 
     memset(__stack, 0, sizeof __stack);
 
@@ -46,16 +54,12 @@ int execute_instructions(uint16_t* data, uint16_t size, start_address)
         int op_code = code >> 12;
         reg_t dest = (code >> 9) & 0x07;
         reg_t sr1 = (code >> 6) & 0x07;
+        reg_t sr2 = code & 0x07;
         bool mode = code & (code << 5);
 
 
         switch (op_code) {
             case ADD: {
-                reg_t dest = (code >> 9) & 0x7;
-                reg_t sr1 = (code >> 6) & 0x7;
-                reg_t sr2 = code & 0x07;
-
-                bool mode = (code >> 5) & 0x1;
 
                 if (mode) {
                     uint16_t val = sign_extend((code & 0x1F), 5);
@@ -66,7 +70,6 @@ int execute_instructions(uint16_t* data, uint16_t size, start_address)
                     __stack[dest] = __stack[sr1] + __stack[sr2];
                 }
                 update_flags(dest);
-
             } break;
             case AND: {
 
@@ -74,37 +77,35 @@ int execute_instructions(uint16_t* data, uint16_t size, start_address)
                     uint16_t val = sign_extend(code & 0x1F, 5);
                     __stack[dest] = __stack[sr1] & val;
                 } else {
-                    __stack[dest] = __stack[sr10] & __stack[sr2];
+                    __stack[dest] = __stack[sr1] & __stack[sr2];
                 }
-
+                update_flags(dest);
             } break;
             case NOT: {
 
                 //DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x sr1: 0x%04x\n", dest, sr1);
                 __stack[dest] = ~__stack[sr1];
-
                 update_flags(dest);
             } break;
             case LD: {
                 uint16_t address = ip + sign_extend((code & 0x1FF), 9);
                 //DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
                 __stack[dest] = __stack[address];
+                update_flags(dest);
             } break;
             case LDI: {
                 uint16_t address = ip + sign_extend((code & 0x1FF), 9);
                 //DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, address);
                 address = __stack[address];
                 __stack[dest] = __stack[address];
+                update_flags(dest);
             } break;
                 // setcc
             case LDR: {
-
                 //DEBUG_TRACE("OP_CODE_NOT dr: 0x%04x address: 0x%04x\n", dest, base);
-
                 uint16_t address = sign_extend((code & 0x3F), 6);
-
                 __stack[dest] = __stack[__stack[sr1] + address];
-
+                update_flags(dest);
             }
             // setcc
             break;
@@ -112,6 +113,7 @@ int execute_instructions(uint16_t* data, uint16_t size, start_address)
                 uint16_t address = sign_extend((code & 0x1FF), 9);
                 //DEBUG_TRACE("OP_CODE_LEA dr: 0x%04x address: 0x%04x\n", dest, address);
                 __stack[dest] = ip + address;
+                update_flags(dest);
             }
             // setcc
             break;
@@ -142,8 +144,49 @@ int execute_instructions(uint16_t* data, uint16_t size, start_address)
             case STR: {
                 uint16_t address = sign_extend((code & 0x3F), 6);
                 __stack[dest] = __stack[__stack[sr1] + address];
-
             } break;
+            case TRAP:
+            {
+                uint16_t trap = code & 0x00FF;
+                /*__stack[R7] = ip;
+                ip = __stack[address]; */
+
+                switch(trap)
+                {
+                    case GETC:
+                    {
+                        // char c = (uint16_t)getchar();
+                        __stack[R0] = (uint16_t)getchar();;
+                        getchar();
+                        //printf("RO: %c", __stack[R0]);
+                        break;
+                    }
+                    case OUT:
+                    {
+                        printf("%c", __stack[R0]);
+                        break;
+                    }
+                    case PUTS:
+                    {
+                        uint16_t address = __stack[R0];
+                        while(__stack[address])
+                        {
+                            printf("%c", __stack[address++]);
+                        }
+                      }
+                        break;
+                    case IN:
+                        printf("$ ");
+                        __stack[R0] = (uint16_t)getchar(); getchar();
+                    case HALT:
+                        exit(EXIT_SUCCESS);
+                        break;
+                    default:
+                    {
+                        printf("incorrect trap number\n");
+                    }
+                }
+            }
             case RES:
             default: {
                 running = false;

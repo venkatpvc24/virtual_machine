@@ -6,8 +6,9 @@
 
 int main(int argc, char** argv)
 {
-  printf("argv[0]: %s, argv[1]: %s\n", argv[0], argv[1]);
+  uint16_t output[UINT16_MAX];
+  uint16_t size = 0;
   node_t* node = parser(argv[1]);
-  assembler(&node);
-
+  assembler(&node, output, &size);
+  execute_instructions(output, size, 0x3000);
 }

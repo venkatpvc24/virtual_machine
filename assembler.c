@@ -231,38 +231,6 @@ int is_comment(char c)
 
 //int is_valid_operand()
 
-int tokenizer(const char* code, tokens_t* tokens)
-{
-    //const char* code = "add r1, r2, r2 ; add register";
-
-    int i = 0, count = 0;
-
-    while(code[i] != '\0')
-    {
-        char token[5];
-        int n = 0;
-        memset(token, 0, 5);
-
-        if (is_comment(code[i]) == 1) break;
-
-        while(is_end_of_str(code[i]) != 1)
-        {
-            if (is_comment(code[i]) == 1) break;
-            token[n++] = code[i++];
-        }
-
-        token[n] = '\0';
-        if (strcmp(token, "") != 0)
-        {
-            tokens->token[count] = malloc(sizeof(char) * n);
-            strcpy(tokens->token[count++], token);
-        }
-        i++;
-    }
-
-    tokens->count = count;
-
-}
 
 uint16_t find_address(char* label, node_t* node)
 {
@@ -292,17 +260,15 @@ uint16_t find_address(char* label, node_t* node)
     return address;
 }
 
-int assembler(node_t** node)
+void assembler(node_t** node, uint16_t* output, uint16_t* size)
 {
-    node_t* tmp = *node;
 
+
+    node_t* tmp = *node; // parsed data
     uint16_t line = 1, index = 0;
     uint16_t bit = 0;
-    uint16_t bin_data[UINT16_MAX];
-
-    label_t labels[100];
+    uint16_t bin_data[UINT16_MAX]; // assembled data
     int len = 0;
-
 
 
     while(tmp != NULL)
@@ -326,7 +292,6 @@ int assembler(node_t** node)
               case 0: // BR
                   {
                       bit = 0;
-                      printf("brnzp: %s\n", vm->type);
 
                       char c1 = vm->type[2];
                       char c2 = vm->type[3];
@@ -342,7 +307,7 @@ int assembler(node_t** node)
                       //printf("label: %s, address: %d, line: %d, current: %d\n", vm->label, address, line, address - line);
 
                       bit |= ((address - line) & 0x1FF);
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       //printf("address: x%04x\n", bin_data[index] + 3017);
                       line++;
                   }
@@ -356,7 +321,7 @@ int assembler(node_t** node)
                                       vm->sr1,
                                       vm->sr2, line, &bit);
                       line++;
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
 
                   }
                   break;
@@ -365,7 +330,7 @@ int assembler(node_t** node)
                       bit = 0;
                       int address = find_address(vm->label, *node);
 
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       line++;
                       break;
                   }
@@ -378,7 +343,7 @@ int assembler(node_t** node)
                                       vm->sr1,
                                       vm->sr2, line, &bit);
                       line++;
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
 
                       break;
                   }
@@ -388,7 +353,7 @@ int assembler(node_t** node)
 
                       bit |= (9 << 12) + (TO_INT(vm->dest) << 9) + (TO_INT(vm->sr1) << 6) + 0x3F;
                       line++;
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       break;
                   }
               case state_ld:
@@ -402,7 +367,7 @@ int assembler(node_t** node)
                                      vm->dest,
                                      vm->sr1, line, &bit);
 
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       line++;
                       break;
                   }
@@ -410,7 +375,7 @@ int assembler(node_t** node)
                   {
                       bit = 0;
                       bit |= (12 << 12) + 0 + (0xE << 5) + 0;
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       line++;
                       break;
                   }
@@ -424,7 +389,7 @@ int assembler(node_t** node)
                       if (strcmp(vm->trap, "in") == 0) bit |= (0x23 & 0xFF);
                       if (strcmp(vm->trap, "halt") == 0) bit |= (0x25 & 0xFF);
 
-                      bin_data[index++] = bit;
+                      output[index++] = bit;
                       line++;
                       break;
                   }
@@ -435,7 +400,7 @@ int assembler(node_t** node)
                     if (strcmp(vm->pesudo, ".fill") == 0 || strcmp(vm->pesudo, ".FILL") == 0)
                     {
                       //printf("number: %d", parse_number(vm->p_value));
-                      bin_data[index++] = parse_number(vm->p_value);
+                      output[index++] = parse_number(vm->p_value);
                       line++;
                     }
 
@@ -444,10 +409,10 @@ int assembler(node_t** node)
                       //printf("number: %d", parse_number(vm->p_value));
                       for(size_t s = 0; s < strlen(vm->p_value); s++)
                       {
-                        if (vm->p_value[s] != '"' ) bin_data[index++] = vm->p_value[s];
+                        if (vm->p_value[s] != '"' ) output[index++] = vm->p_value[s];
                         line++;
                       }
-                      bin_data[index++] = '\0';
+                      output[index++] = '\0';
                     }
 
                   }
@@ -462,7 +427,8 @@ int assembler(node_t** node)
           }
           tmp = tmp->next;
       }
-      printf("index: %d", index);
-   for ( int i = 0; i < index; i++ ) printf("ip: x%04x, code: 0x%04x\n", i + 12288, bin_data[i]);
+      *size = index;
+   //printf("index: %d", index);
+   //for ( int i = 0; i < index; i++ ) printf("ip: x%04x, code: 0x%04x\n", i + 12288, bin_data[i]);
 
 }

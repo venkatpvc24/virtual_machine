@@ -2,6 +2,8 @@
 #define ASSEMBLER_H
 
 #include <stdbool.h>
+#include <stdint.h>
+
 
 #define INVALID_REG 1
 #define INVALID_OP 2
@@ -28,8 +30,6 @@
 #define IS_OFFSET9(num) ( (num >= -256 && num <= 255))
 
 
-
-int PC;
 
 static const char* arr[17] = {"br", "add", "ld", "st", "jsr", "and", "ldr",
                   "str", "rti", "not", "ldi", "sti", "ret", "res", "lea", "trap", "pesudo"};
@@ -67,8 +67,7 @@ typedef struct
     int address;
 } label_t;
 
-
-int assembler(node_t** node);
+void assembler(node_t** node, uint16_t* output, uint16_t* size);
 
 
 #endif

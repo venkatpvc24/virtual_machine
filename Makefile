@@ -3,9 +3,9 @@ SRC := ./src
 OBJ := ./obj
 SRCS := $(wildcard $(SRC)/*.c)
 
-CC := gcc
+CC := gcc #gcc
 
-CFLAGS := -std=c11 
+CFLAGS := -std=c11
 
 
 #-Wall -Wextra -Wpedantic  -Wformat=2  \
@@ -14,12 +14,15 @@ CFLAGS := -std=c11
 
 debug := CFLAGS += -g
 
-objects = main.o parser.o assembler.o
+objects = main.o parser.o assembler.o vm.o
 
 
-main debug: main.o parser.o assembler.o
+main debug: main.o parser.o assembler.o vm.o
 	$(CC) $(CFLAGS) -o $@ $^ -Wall -O2
 
+
+run:
+	echo ./main $$arg
 
 clean:
 	rm -f /p/a/t/h main main.o debug debug.o assembler.o vm.o parser.o
