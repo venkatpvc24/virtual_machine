@@ -9,7 +9,7 @@
 #include "parser.h"
 #include "assembler.h"
 
-
+uint16_t find_address(char* label, node_t* node);
 
 int parse_number(const char* reg)
 {
@@ -124,7 +124,16 @@ uint16_t sign_extend(uint16_t x, int bit_count) {
     return x;
 }
 
-int PC_Offset9(int op, const char* op_code, const char* r1, const char* offset, int line, uint16_t* bit)
+
+uint16_t find_address(char* label, node_t* node);
+
+int PC_Offset9(int op,
+              const char* op_code,
+              const char* r1,
+              char* offset,
+              int line,
+              uint16_t* bit,
+              node_t* node)
 {
     *bit = 0;
 
@@ -136,13 +145,29 @@ int PC_Offset9(int op, const char* op_code, const char* r1, const char* offset, 
 
     }
 
-    int address = parse_number(offset);
+    int address = 0;
+
+    if (offset[0] != 'x' || offset[0] != '#')
+    {
+        address = find_address(offset, node) - 1;
+    }else
+    {
+        address = parse_number(offset);
+    }
+
     //printf("address: %d\n", address);
     *bit = (op << 12) + (TO_INT(r1) << 9) + (address & 0x1FF);
     return 0;
 }
 
-int PC_Offset5(int op, const char* op_code, const char* dreg, const char* reg, const char* offset5, int line_count, uint16_t* bit)
+int PC_Offset5(int op,
+              const char* op_code,
+              const char* dreg,
+              const char* reg,
+              char* offset,
+              int line_count,
+              uint16_t* bit,
+              node_t* node)
 {
 
     *bit = 0;
@@ -152,7 +177,18 @@ int PC_Offset5(int op, const char* op_code, const char* dreg, const char* reg, c
         return EXIT_FAILURE;
     }
 
-    int address = parse_number(offset5);
+
+        int address = 0;
+
+        if (offset[0] != 'x' || offset[0] != '#')
+        {
+          address = find_address(offset, node) - 1;
+        }
+        else
+        {
+            address = parse_number(offset);
+        }
+
 
     *bit |= (op << 12) + (TO_INT(dreg) << 9) + (TO_INT(reg) << 6) + (address & 0x1F);
 
@@ -241,10 +277,12 @@ uint16_t find_address(char* label, node_t* node)
     bool action = false;
     while(list != NULL)
     {
-        if (list->data->label != NULL && strcmp(list->data->type, "label") == 0)
+        if (list->data->label != NULL &&
+            strcmp(list->data->type, "label") == 0 &&
+            strcmp(list->data->type, "pesudo") == 0 &&
+            strlen(list->data->label) > 1)
         {
 
-          //printf("type: %s, data->label: %s, address: %d\n", list->data->type, list->data->label, address);
           if (strcmp(label, list->data->label) == 0) break;
         }
 
@@ -341,7 +379,9 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                       PC_Offset5(op, vm->type,
                                       vm->dest,
                                       vm->sr1,
-                                      vm->sr2, line, &bit);
+                                      vm->sr2, line,
+                                      &bit,
+                                      *node);
                       line++;
                       output[index++] = bit;
 
@@ -365,7 +405,9 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
 
                       PC_Offset9(op, vm->type,
                                      vm->dest,
-                                     vm->sr1, line, &bit);
+                                     vm->sr1, line,
+                                     &bit,
+                                     *node);
 
                       output[index++] = bit;
                       line++;

@@ -86,16 +86,16 @@ vm_t* vm_init(void) {
 }
 
 void vm_print(vm_t* vm) {
-    printf("************** %s *************\n\n", vm->type);
-    printf("vm.origin   : %s\n", vm->origin);
-    printf("vm.type     : %s\n", vm->type);
-    printf("vm.dest     : %s\n", vm->dest);
-    printf("vm.sr1      : %s\n", vm->sr1);
-    printf("vm.sr2      : %s\n", vm->sr2);
-    printf("vm.label    : %s\n", vm->label);
-    printf("vm.pesudo   : %s\n", vm->pesudo);
-    printf("vm.p_value  : %s\n", vm->p_value);
-    printf("vm.trap     : %s\n\n", vm->trap);
+    //printf("************** %s *************\n", vm->type);
+    //printf("vm.origin   : %s, ", vm->origin);
+    printf("vm.type     : %s, ", vm->type);
+    //printf("vm.dest     : %s, ", vm->dest);
+    //printf("vm.sr1      : %s, ", vm->sr1);
+    //printf("vm.sr2      : %s, ", vm->sr2);
+    printf("vm.label    : %s, ", vm->label);
+    //printf("vm.pesudo   : %s, ", vm->pesudo);
+    //printf("vm.p_value  : %s\n ", vm->p_value);
+    //printf("vm.trap     : %s\n", vm->trap);
 }
 
 
@@ -230,6 +230,7 @@ node_t* parser(const char* filename) {
     node_t* list = NULL;
     char buffer[300];
     FILE* in = fopen(filename, "r");
+    //int count = 0;
     if (in == NULL) {
         printf("error no: %d\n", errno);
         printf("error: %s\n", strerror(errno));
@@ -252,6 +253,7 @@ node_t* parser(const char* filename) {
                     printf("error\n");
                     break;
                 case state_start_origin:
+                    //count++;
                     if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
                         str = malloc(sizeof(char) * LBL_SIZE);
                         sprintf(str, "%.*s", (int)current_token_length,
@@ -289,6 +291,7 @@ node_t* parser(const char* filename) {
                                     if (c == ' ' && str[0] != '.') {
                                         vm_copy_string(&vm->pesudo, current_token_length, NULL, true);
                                         vm_copy_string(&vm->type, current_token_length, "pesudo", true);
+                                        vm_copy_string(&vm->label, current_token_length, str, true);
                                         pesudo = start_p_value_parser;
                                         break;
                                     }
@@ -426,7 +429,7 @@ node_t* parser(const char* filename) {
             }
         }
     }
-    //node_print(&list);
+    node_print(&list);
     // free(in);
     return list;
 }
