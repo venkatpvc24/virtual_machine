@@ -19,9 +19,7 @@ you can add your comment after semicolon
 
 
 // static const char* pesudo_codes[5] = {".orig", ".end", ".fill", ".blkw", ".stringz"};
-
-typedef enum
-{
+typedef enum {
     state_br,
     state_add,
     state_ld,
@@ -44,8 +42,7 @@ typedef enum
     state_third_register,
     state_get_br_token
 
-} op_codes_t;
-
+} opcodes_t;
 
 typedef enum {
     state_error,
@@ -54,15 +51,9 @@ typedef enum {
     state_start_label_parser,
     state_start_opcode_parser,
     state_start_trap_parser
+} state;
 
-} State;
-
-typedef enum
-{
-  start_pesudo_parser,
-  start_p_value_parser,
-  next_line
-} pesudo_t;
+typedef enum { start_pesudo_parser, start_p_value_parser, next_line } pesudo_t;
 
 typedef struct {
     char* origin;

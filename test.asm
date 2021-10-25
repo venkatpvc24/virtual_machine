@@ -1,36 +1,51 @@
 .ORIG x3000
-	LEA R0, #4		; Prompt user for input
-	PUTS
-	GETC					; Get input from user
 	ADD R0, R0, #-16
 	ADD R0, R0, #-16
 	ADD R0, R0, #-16
+
+; Validate input
+;/-----------------------------
+
+;check lower bound and check upper bound
+;	if input < 0
+;		invalid
+;	else if input - 6 > 0
+;		invalid
+;	else
+;		valid
+;/-----------------------------
 	ADD R0, R0, #0
-	BRnz INVALID ;
+	BRn INVALID
 	ADD R0, R0, #-6
-	BRp INVALID       ;
-	OUT
+	BRp INVALID
+;	OUT
+; Display the day of the week
+;/-----------------------------
+
+;/-----------------------------
+
 LOOP				; Go thR0ugh the days of the week
-	LEA R0, #3
+	LEA R0, DAYS
 	ADD R0, R0, #0
-	BRzp DISPLAY				; Day of week found, so display
+	BRz DISPLAY		; Day of week found, so display
 	ADD R0, R0, #10		; Go to the next day of the week
 	ADD R0, R0, #-1		; Decrement the counter
-	LD R0, #-254
-	BRnp LOOP;
-	ST R0, #4;
-	LDR R0, R1, #3		;
-	STR R1, R2, #4
-	NOT R1, R2
-	STI R0, #4
-	LDI R2, #2 ; RTI
-	RET;
+	BRp LOOP
 DISPLAY				; Display the day of the week
 	PUTS
+
 INVALID				; Input is invalid
+
 HALT
 
-VAL .FILL x235
-VAL1 .STRINGZ "venkata chary, padala"
+PROMPT .STRINGZ "Please enter a number fR0m 0-6: "
+DAYS .STRINGZ "Sunday   "
+ .STRINGZ "Monday   "
+ .STRINGZ "Tuesday  "
+ .STRINGZ "Wendsday "
+ .STRINGZ "Thursday "
+ .STRINGZ "Friday   "
+ .STRINGZ "Saturday "
+
 
 .END
