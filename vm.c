@@ -10,14 +10,18 @@
 #include "vm.h"
 
 
-static void update_flags(uint16_t r, uint16_t* __stack)
+void update_flags(uint16_t r, uint16_t* __stack)
 {
-    if (__stack[r] == 0) {
+    if (__stack[r] == 0)
+    {
         __stack[R_COND] = F_ZERO;
-    } else if (__stack[r] >> 15)  // a 1 in the left-most bit indicates negative
+    }
+    else if (__stack[r] >> 15) /* a 1 in the left-most bit indicates negative */
     {
         __stack[R_COND] = F_NEG;
-    } else {
+    }
+    else
+    {
         __stack[R_COND] = F_POS;
     }
 }
@@ -45,9 +49,11 @@ int execute_instructions(uint16_t* data, uint16_t size, uint16_t start_address)
 
     for (int i = 0; i < size; i++) {
         __stack[ip + i] = data[i];
-        //printf("code: 0x%04x, ", __stack[ip+i]);
+        printf("ip: 0x%04x <--> code: 0x%04x, ", ip+i, __stack[ip+i]);
     }
 
+    printf("\n");
+    
     bool running = true;
     char ch;
     while (running) {
@@ -118,11 +124,14 @@ int execute_instructions(uint16_t* data, uint16_t size, uint16_t start_address)
             }
             // setcc
             break;
-            case BR: {
-                int16_t address = sign_extend(code & 0x1ff, 9);
-                uint16_t mode = (code >> 9) & 0x07;
-                if (mode && __stack[R_COND] == 1) ip += (address);
-                if (mode && __stack[R_COND] == 3) break;
+            case BR:
+            {
+                uint16_t address = sign_extend(code & 0x1FF, 9);
+                uint16_t c_flag = (code >> 9) & 0x7;
+                if (c_flag & __stack[R_COND])
+                {
+                    __stack[ip] += address;
+                }
             } break;
             case JSR: {
                 uint16_t address = sign_extend( code & 0x7FF, 11);

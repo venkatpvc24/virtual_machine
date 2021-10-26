@@ -1,78 +1,57 @@
-; LC3 Program
-; Class: CSE 313, Machine Organization
-; Section: 02
-; Term: Spring 14
-; Instructor: Taline Georgio
-; Name(s): William Ng
-; Created : 4 /28/ 14
-; Lab: #3 Days of the Week
-; Description:
-; 	This program displays the days of the week to the console.
-;	A day of the week is displayed to the console corresponding
-; 	to whatever the user inputs.
-;
-;	Input is read from the user as a number from 0-6. A 0
-;	corresponds to sunday, a one corresponds to 1, a 2
-;	corresponds to a 3, and so on. The output will be a
-;	day of the week reprented as a string. So 0 would
-;	display "Sunday" to the console, 1 would dispaly
-; 	"Monday" to the console, 2 would display "Tuesday"
-; 	to the console, and so on.
-
-
 .ORIG x3000
-	LEA R0, PROMPT		; Prompt user for input
-	PUTS
-	GETC			; Get input from user
 
-; Convert input from ascii to integer
-	ADD R0, R0, #-16
-	ADD R0, R0, #-16
-	ADD R0, R0, #-16
+;---------------------------------------------------
+; X - Y
+; X - Y = X + (-Y) = X + (NOT(Y) + 1)
+; Ex. 5 - 3 = 2 = x0002
+;---------------------------------------------------
 
-; Validate input
-;/-----------------------------
+LDI R3, X 		; Load the values of X and Y
+LDI R4, Y		; Stored in x3120 and x3121
+NOT R2, R4		; Do two's complement on Y
+ADD R1, R3, R2		; Subtract Y from X
+STI R1, X_minus_Y	; Store the result
 
-;check lower bound and check upper bound
-;	if input < 0
-;		invalid
-;	else if input - 6 > 0
-;		invalid
-;	else
-;		valid
-;/-----------------------------
-	ADD R0, R0, #0
-	BRn INVALID
-	ADD R0, R0, #-6
-	BRp INVALID
-;	OUT
-; Display the day of the week
-;/-----------------------------
+;---------------------------------------------------
+; |X|
+;---------------------------------------------------
 
-;/-----------------------------
 
-LOOP				; Go thR0ugh the days of the week
-	LEA R0, DAYS
-	ADD R0, R0, #0
-	BRz DISPLAY		; Day of week found, so display
-	ADD R0, R0, #10		; Go to the next day of the week
-	ADD R0, R0, #-1		; Decrement the counter
-	BRp LOOP
-DISPLAY				; Display the day of the week
-	PUTS
 
-INVALID				; Input is invalid
+
+
+
+
+;---------------------------------------------------
+; |Y|
+;---------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;---------------------------------------------------
+; Z
+;---------------------------------------------------
+
+
 
 HALT
 
-PROMPT .STRINGZ "Please enter a number fR0m 0-6: "
-DAYS .STRINGZ "Sunday   "
- .STRINGZ "Monday   "
- .STRINGZ "Tuesday  "
- .STRINGZ "Wendsday "
- .STRINGZ "Thursday "
- .STRINGZ "Friday   "
- .STRINGZ "Saturday "
-
+X					.FILL x3120
+Y 				.FILL x3121
+X_minus_Y .FILL x3122
+absX 			.FILL x3123
+absY 			.FILL x3124
+Z 				.FILL x3125
 
 .END

@@ -74,11 +74,14 @@ static void node_print(node_t** node) {
 vm_t* vm_init(void) {
     vm_t* vm = malloc(sizeof *vm);
     vm->origin = NULL;
-    vm->type = NULL;
+    vm->type = 0;
+    vm->name = NULL;
     vm->dest = NULL;
     vm->sr1 = NULL;
     vm->sr2 = NULL;
-    vm->label = NULL;
+    vm->label = malloc(sizeof(label_t));
+    vm->label->label = NULL;
+    vm->label->address = 0;
     vm->trap = NULL;
     vm->pesudo = NULL;
     vm->p_value = NULL;
@@ -88,14 +91,16 @@ vm_t* vm_init(void) {
 void vm_print(vm_t* vm) {
     //printf("************** %s *************\n", vm->type);
     //printf("vm.origin   : %s, ", vm->origin);
-    printf("vm.type     : %s, ", vm->type);
-    //printf("vm.dest     : %s, ", vm->dest);
-    //printf("vm.sr1      : %s, ", vm->sr1);
-    //printf("vm.sr2      : %s, ", vm->sr2);
-    printf("vm.label    : %s, ", vm->label);
-    //printf("vm.pesudo   : %s, ", vm->pesudo);
-    //printf("vm.p_value  : %s\n ", vm->p_value);
-    //printf("vm.trap     : %s\n", vm->trap);
+    printf("vm.type: %d, ", vm->type);
+    printf("vm.name: %s, ", vm->name);
+    printf("vm.dest: %s, ", vm->dest);
+    printf("vm.sr1: %s, ", vm->sr1);
+    printf("vm.sr2: %s, ", vm->sr2);
+    printf("vm.label: %s, ", vm->label->label);
+    //printf("vm.address: %d, ", vm->label->address);
+    printf("vm.pesudo: %s, ", vm->pesudo);
+    printf("vm.p_value: %s, ", vm->p_value);
+    printf("vm.trap     : %s\n\n", vm->trap);
 }
 
 
@@ -230,7 +235,7 @@ node_t* parser(const char* filename) {
     node_t* list = NULL;
     char buffer[300];
     FILE* in = fopen(filename, "r");
-    //int count = 0;
+    int count = 0;
     if (in == NULL) {
         printf("error no: %d\n", errno);
         printf("error: %s\n", strerror(errno));
@@ -239,7 +244,7 @@ node_t* parser(const char* filename) {
 
         if (strlen(buffer) == 1) continue;
 
-        state state = state_start_origin;  // change made
+        state state = state_start;  // change made
         int offset = vm_ltrim(buffer);
 
         if (buffer[offset] == ';') continue;
@@ -252,8 +257,7 @@ node_t* parser(const char* filename) {
                 case state_error:
                     printf("error\n");
                     break;
-                case state_start_origin:
-                    //count++;
+                case state_start:
                     if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
                         str = malloc(sizeof(char) * LBL_SIZE);
                         sprintf(str, "%.*s", (int)current_token_length,
@@ -261,25 +265,20 @@ node_t* parser(const char* filename) {
                         current_token_length = 0;
                         //printf("str: %s\n", str);
                         vm_to_lower(str);
-                        if (str[0] == '.' && (strcmp(str, ".orig") == 0 || strcmp(str, ".end") == 0)) {
-                            vm_copy_string(&vm->pesudo, current_token_length, str, true);
-                            vm_copy_string(&vm->type, current_token_length, "pesudo", true);
-                            node_append(&list, &vm);
-                            vm = vm_init();
-                            state = state_next_line;
-                            break;
-                        }
-                        // printf("first str: %s\n", str);
                         state = check_string(str);
                         break;
                     }
                     add_token(c);
                     break;
+                case state_start_origin_parser:
+
                 case state_start_label_parser:
                     if (str[0] != '.' && vm_is_end_of_line(c))
                     {
-                        vm_copy_string(&vm->label, current_token_length, str, true);
-                        vm_copy_string(&vm->type, current_token_length, "label", true);
+                        vm_copy_string(&vm->label->label, current_token_length, str, true);
+                        vm->label->address = count;
+                        vm->type = VM_LABEL;
+                        vm_copy_string(&vm->name, current_token_length, "label", true);
                         vm_go_to_next_line(c, &list, &vm, &state);
                         break;
                     }
@@ -288,17 +287,21 @@ node_t* parser(const char* filename) {
                         while (state != state_next_line) {
                             switch (pesudo) {
                                 case start_pesudo_parser: {
-                                    if (c == ' ' && str[0] != '.') {
+                                    if (c != ' ' && str[0] != '.') {
                                         vm_copy_string(&vm->pesudo, current_token_length, NULL, true);
-                                        vm_copy_string(&vm->type, current_token_length, "pesudo", true);
-                                        vm_copy_string(&vm->label, current_token_length, str, true);
+                                        vm->type = VM_PESUDO;
+                                        vm_copy_string(&vm->name, current_token_length, "pesudo", true);
+                                        vm_copy_string(&vm->label->label, current_token_length, str, true);
+                                        vm->label->address = count;
                                         pesudo = start_p_value_parser;
                                         break;
                                     }
                                     if (str[0] == '.' && vm_is_end_of_line(c))
-                                    {       vm_copy_string(&vm->p_value, current_token_length, NULL, false);
+                                    {
+                                            vm_copy_string(&vm->p_value, current_token_length, NULL, false);
                                             vm_copy_string(&vm->pesudo, current_token_length, str, true);
-                                            vm_copy_string(&vm->type, current_token_length, "pesudo", true);
+                                            vm->type = VM_PESUDO;
+                                            vm_copy_string(&vm->name, current_token_length, "pesudo", true);
                                             vm_go_to_next_line(c, &list, &vm, &state);
                                             break;
                                     }
@@ -325,13 +328,16 @@ node_t* parser(const char* filename) {
                     }
                     break;
                 case state_start_trap_parser:
+                    count++;
                     vm_copy_string(&vm->trap, current_token_length, str, true);
-                    vm_copy_string(&vm->type, current_token_length, "trap", true);
+                    vm->type = VM_TRAP;
+                    vm_copy_string(&vm->name, current_token_length, "trap", true);
                     vm_go_to_next_line(c, &list, &vm, &state);
                     break;
                 case state_start_opcode_parser: {
                     opcodes_t op_state = get_op(str);
-                    vm_copy_string(&vm->type, current_token_length, str, true);
+                    vm->type = VM_OPCODE;
+                    vm_copy_string(&vm->name, current_token_length, str, true);
                     while (state != state_next_line) {
                         switch (op_state) {
                             case state_add:
@@ -356,7 +362,7 @@ node_t* parser(const char* filename) {
                                 break;
                             case state_br:
                                 if (vm_is_end_of_line(c)) {
-                                    vm_copy_string(&vm->label, current_token_length, NULL, true);
+                                    vm_copy_string(&vm->label->label, current_token_length, NULL, true);
                                     vm_go_to_next_line(c, &list, &vm, &state);
                                     break;
                                 }
@@ -367,7 +373,7 @@ node_t* parser(const char* filename) {
                                 break;
                             case state_jsr:
                                 if (vm_is_end_of_line(c)) {
-                                    vm_copy_string(&vm->label, current_token_length, NULL, true);
+                                    vm_copy_string(&vm->label->label, current_token_length, NULL, true);
                                     vm_go_to_next_line(c, &list, &vm, &state);
                                     break;
                                 }
@@ -413,6 +419,7 @@ node_t* parser(const char* filename) {
                                 add_token(c);
                                 break;
                             default:
+
                                 state = state_next_line;
                                 break;
                         }
@@ -429,7 +436,7 @@ node_t* parser(const char* filename) {
             }
         }
     }
-    node_print(&list);
+    //node_print(&list);
     // free(in);
     return list;
 }

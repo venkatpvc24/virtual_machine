@@ -149,7 +149,7 @@ int PC_Offset9(int op,
 
     if (offset[0] != 'x' || offset[0] != '#')
     {
-        address = find_address(offset, node) - 1;
+        address = find_address(offset, node) - line;
     }else
     {
         address = parse_number(offset);
@@ -165,7 +165,7 @@ int PC_Offset5(int op,
               const char* dreg,
               const char* reg,
               char* offset,
-              int line_count,
+              int line,
               uint16_t* bit,
               node_t* node)
 {
@@ -173,7 +173,7 @@ int PC_Offset5(int op,
     *bit = 0;
     if (parse_register(dreg) == INVALID_REG || parse_register(reg) == INVALID_REG)
     {
-        fprintf(stderr, "warning %d: %s expression has invalid register %s or %s\n", line_count, op_code, dreg, reg);
+        fprintf(stderr, "warning %d: %s expression has invalid register %s or %s\n", line, op_code, dreg, reg);
         return EXIT_FAILURE;
     }
 
@@ -182,7 +182,7 @@ int PC_Offset5(int op,
 
         if (offset[0] != 'x' || offset[0] != '#')
         {
-          address = find_address(offset, node) - 1;
+          address = find_address(offset, node) - line;
         }
         else
         {
@@ -273,37 +273,35 @@ uint16_t find_address(char* label, node_t* node)
     uint16_t address = 0;
     node_t* list = node;
 
-    for (size_t i = 0; i < strlen(label); i++) label[i] |= 32;
+    // for (size_t i = 0; i < strlen(label); i++) label[i] |= 32;
     bool action = false;
     while(list != NULL)
     {
-        if (list->data->label != NULL &&
-            strcmp(list->data->type, "label") == 0 &&
-            strcmp(list->data->type, "pesudo") == 0 &&
-            strlen(list->data->label) > 1)
-        {
+      vm_t* vm = list->data;
+      if (( vm->type == VM_LABEL || vm->type == VM_PESUDO) && vm->label->label != NULL)
+      {
+        if (strcmp(label, vm->label->label) ==0) break;
+      }
 
-          if (strcmp(label, list->data->label) == 0) break;
-        }
-
-        if(strcmp(list->data->type, "label") != 0 && strcmp(list->data->type, "pesudo") != 0)
-        {
-          address++;
-        }
+      if (vm->type == VM_PESUDO && (strcmp(vm->pesudo, ".orig") != 0 && strcmp(vm->pesudo, ".end") != 0))
+      {
+        size_t len = strlen(vm->p_value) - 1;
+        address += len;
+      }
+      if ( vm->type != VM_LABEL && vm->type != VM_PESUDO) address++;
 
       list = list->next;
-
     }
-
+    printf("address: %d\n", address);
     return address;
 }
 
-void assembler(node_t** node, uint16_t* output, uint16_t* size)
+void assembler(node_t** node, uint16_t* output, uint16_t* size, uint16_t* start_address)
 {
 
 
     node_t* tmp = *node; // parsed data
-    uint16_t line = 1, index = 0;
+    uint16_t line = 0, index = 0;
     uint16_t bit = 0;
     uint16_t bin_data[UINT16_MAX]; // assembled data
     int len = 0;
@@ -313,17 +311,21 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
       {
           vm_t* vm = tmp->data;
 
-          if (strcmp(vm->type, "label") == 0)
+          if (vm->type == VM_LABEL)
           {
                 tmp = tmp->next;
                 continue;
           }
 
+
           // char* op_code = (vm->type == NULL) ? vm->trap : vm->type;
-          uint16_t op = get_op(vm->type);
+          uint16_t op = get_op(vm->name);
 
           //printf("op: %d, type: %s\n", op, vm->type);
-
+          if (vm->type != VM_LABEL && vm->type != VM_PESUDO)
+          {
+            line++;
+          }
 
           switch(op)
           {
@@ -331,15 +333,15 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                   {
                       bit = 0;
 
-                      char c1 = vm->type[2];
-                      char c2 = vm->type[3];
-                      char c3 = vm->type[4];
+                      char c1 = vm->name[2];
+                      char c2 = vm->name[3];
+                      char c3 = vm->name[4];
 
                       bit |= (c1 == 'n' ? (1 << 11) : (0 << 11));
                       bit |= (c1 == 'z'  || c2 == 'z' ? (1 << 10) : (0 << 10));
                       bit |= (c1 == 'p' || c2 == 'p' || c3 == 'p' ? (1 << 9) : (0 << 9));
 
-                      int address = find_address(vm->label, *node);
+                      int address = find_address(vm->label->label, *node);
 
 
                       //printf("label: %s, address: %d, line: %d, current: %d\n", vm->label, address, line, address - line);
@@ -347,18 +349,18 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                       bit |= ((address - line) & 0x1FF);
                       output[index++] = bit;
                       //printf("address: x%04x\n", bin_data[index] + 3017);
-                      line++;
+
                   }
-                  break;
+              break;
               case state_and:
               case state_add: // ADD
                   {
 
-                      dr_sr_imme5(op, vm->type,
+                      dr_sr_imme5(op, vm->name,
                                       vm->dest,
                                       vm->sr1,
                                       vm->sr2, line, &bit);
-                      line++;
+
                       output[index++] = bit;
 
                   }
@@ -366,23 +368,22 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
               case state_jsr: // JSR
                   {
                       bit = 0;
-                      int address = find_address(vm->label, *node);
+                      int address = find_address(vm->label->label, *node);
 
                       output[index++] = bit;
-                      line++;
+
                       break;
                   }
               case state_str:
               case state_ldr: // LDR
                   {
-
-                      PC_Offset5(op, vm->type,
+                      PC_Offset5(op, vm->name,
                                       vm->dest,
                                       vm->sr1,
                                       vm->sr2, line,
                                       &bit,
                                       *node);
-                      line++;
+
                       output[index++] = bit;
 
                       break;
@@ -392,7 +393,7 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                       bit = 0;
 
                       bit |= (9 << 12) + (TO_INT(vm->dest) << 9) + (TO_INT(vm->sr1) << 6) + 0x3F;
-                      line++;
+
                       output[index++] = bit;
                       break;
                   }
@@ -403,14 +404,14 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
               case state_sti: // STI
                   {
 
-                      PC_Offset9(op, vm->type,
+                      PC_Offset9(op, vm->name,
                                      vm->dest,
                                      vm->sr1, line,
                                      &bit,
                                      *node);
 
                       output[index++] = bit;
-                      line++;
+
                       break;
                   }
               case state_ret: // RET
@@ -418,7 +419,7 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                       bit = 0;
                       bit |= (12 << 12) + 0 + (0xE << 5) + 0;
                       output[index++] = bit;
-                      line++;
+
                       break;
                   }
               case state_trap: // RES
@@ -432,34 +433,36 @@ void assembler(node_t** node, uint16_t* output, uint16_t* size)
                       if (strcmp(vm->trap, "halt") == 0) bit |= (0x25 & 0xFF);
 
                       output[index++] = bit;
-                      line++;
+
                       break;
                   }
               case state_pesudo:
                 {
-                  if (strcmp(vm->pesudo, ".orig") != 0 || strcmp(vm->pesudo, ".end") != 0)
+                  if (strcmp(vm->pesudo, ".end") != 0)
                   {
-                    if (strcmp(vm->pesudo, ".fill") == 0 || strcmp(vm->pesudo, ".FILL") == 0)
+                    if (strcmp(vm->pesudo, ".orig") == 0)
+                    {
+                      *start_address = parse_number(vm->p_value);
+                    }
+                    if (strcmp(vm->pesudo, ".fill") == 0)
                     {
                       //printf("number: %d", parse_number(vm->p_value));
                       output[index++] = parse_number(vm->p_value);
-                      line++;
                     }
 
-                    if (strcmp(vm->pesudo, ".stringz") == 0 || strcmp(vm->pesudo, ".STRINGZ") == 0)
+                    if (strcmp(vm->pesudo, ".stringz") == 0)
                     {
                       //printf("number: %d", parse_number(vm->p_value));
-                      for(size_t s = 0; s < strlen(vm->p_value); s++)
+                      for(size_t s = 1; s < strlen(vm->p_value); s++)
                       {
-                        if (vm->p_value[s] != '"' ) output[index++] = vm->p_value[s];
-                        line++;
+                        if (vm->p_value[s] == '"' ) break;
+                          output[index++] = vm->p_value[s]; line++;
                       }
-                      output[index++] = '\0';
+                      //line--;
+                      output[index++] = '\0'; line++;
                     }
 
                   }
-
-
                   break;
                 }
               default:

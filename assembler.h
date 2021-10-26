@@ -60,14 +60,7 @@ typedef struct
 
 
 
-
-typedef struct
-{
-    char label[100];
-    int address;
-} label_t;
-
-void assembler(node_t** node, uint16_t* output, uint16_t* size);
+void assembler(node_t** node, uint16_t* output, uint16_t* size, uint16_t* start_address);
 
 
 #endif

@@ -2,7 +2,7 @@
 #define PARSER_H
 
 
-
+#include <stdint.h>
 
 #define LBL_SIZE 20
 
@@ -16,6 +16,10 @@ you can add your comment after semicolon
 
 */
 
+#define VM_OPCODE 1
+#define VM_LABEL 2
+#define VM_PESUDO 3
+#define VM_TRAP 4
 
 
 // static const char* pesudo_codes[5] = {".orig", ".end", ".fill", ".blkw", ".stringz"};
@@ -47,7 +51,8 @@ typedef enum {
 typedef enum {
     state_error,
     state_next_line,
-    state_start_origin,
+    state_start,
+    state_start_origin_parser,
     state_start_label_parser,
     state_start_opcode_parser,
     state_start_trap_parser
@@ -55,16 +60,22 @@ typedef enum {
 
 typedef enum { start_pesudo_parser, start_p_value_parser } pesudo_t;
 
+typedef struct{
+  char* label;
+  uint16_t address;
+} label_t;
+
 typedef struct {
+    int type;
     char* origin;
-    char* type;
+    char* name;
     char* dest;
     char* sr1;
     char* sr2;
-    char* label;
     char* pesudo;
     char* p_value;
     char* trap;
+    label_t* label;
 } vm_t;
 
 struct node {
