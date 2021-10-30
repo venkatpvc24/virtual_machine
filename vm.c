@@ -45,7 +45,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
     // memset(__stack, 0, sizeof __stack);
 
     uint16_t ip = start_address;
-    printf("ip: 0x%04x\n", ip);
+    //printf("ip: 0x%04x\n", ip);
 
     uint16_t* test;
     test = __stack;
@@ -64,6 +64,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
         reg_t dest = (code >> 9) & 0x07;
         reg_t sr1 = (code >> 6) & 0x07;
         reg_t sr2 = code & 0x07;
+        //printf("sr2: %d, sr1: %d\n", __stack[sr2], __stack[sr1]);
         bool mode = (code >> 5) & 0x1;
 
 
@@ -172,7 +173,10 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
                     }
                     case OUT:
                     {
-                        printf("%d", __stack[R0]);
+                       //char test = (char)__stack[R0];
+                        //printf("%d\n", __stack[R0]);
+                        printf("%c\n", __stack[R0] & 0XFF);
+                        //fflush(stdout);
                         break;
                     }
                     case PUTS:

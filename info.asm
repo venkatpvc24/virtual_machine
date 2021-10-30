@@ -1,0 +1,24 @@
+.orig x3000
+LD R1, X
+LD R2, Y
+JSR SWAP
+
+
+SWAP
+  LEA R0, VALY
+  PUTS
+  ADD R0, R1, #0
+  OUT
+  LEA R0, VALX
+  PUTS
+  ADD R0, R2, #0
+  OUT
+
+HALT
+
+X .FILL x10
+Y .FILL x20
+
+VALX .STRINGZ "VALX: "
+VALY .STRINGZ "VALY: "
+.end

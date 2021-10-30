@@ -275,11 +275,8 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
             index++;
             vm_next_token();
             token.count = 0;
-            if (*c == 's' || *c == 'S')
-             {
-                vm_next_token();
+            vm_next_token();
                 char stringz[7];
-
                 sprintf(stringz, "%.*s", token.count, token.current);
                 vm_to_lower(stringz);
                 token.count = 0;
@@ -299,7 +296,20 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                     }
                     line_number += size;
                 }
-            }
+                if (strcmp(stringz, "fill") == 0)
+                {
+                  line_number++;
+                }
+
+                if (strcmp(stringz, "blkw") == 0)
+                {
+                  vm_next_token();
+                  int b;
+                  if (base10) b = 10;
+                  if (base16) b = 16;
+                  u16 value = vm_parse_number(b);
+                  for (u16 i = 0; i < value; i++) line_number++;
+                }
         }
     }
 
@@ -309,6 +319,9 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
     while (fgets(line, 500, in)) {
         c = line;
         //printf("buf: %s\n", c);
+        is_reg = true;
+        base16 = false;
+        base10 = false;
         vm_next_token();
         find_op_type();
         if (opcode_state == VM_EOL) continue;
@@ -357,7 +370,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                                 fprintf(stderr, "invalid opcode - %s", op_codes[base]);
                             }
 
-                            base = (1 << 12) | (vm_is_register() << 9);
+                            base = (op_trap.current << 12) | (vm_is_register() << 9);
                             vm_require(TK_COMMA);
 
                             base |= (vm_is_register() << 6);
@@ -372,7 +385,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                                 int imme = vm_parse_number(b);
                                 base |= (1 << 5) | (imme & 0x1F);
                             } else {
-                                base |= (0 << 5) | (vm_is_register() & 0x1F);
+                                base |= (0 << 5) | (vm_is_register() & 0x07);
                             }
 
                             vm_next_token();
@@ -483,7 +496,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                 break;
             case TYPE_TRAP:
                 {
-                printf("oh it's trap\n");
+                //printf("oh it's trap\n");
                 opcode_state = VM_EOL;
                 u16 base = 0xF000;
                 if (strcmp(op_trap.opcode, "getc") == 0) base |= (0x20 & 0xFF);
@@ -568,5 +581,5 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
     }
     *len_of_data = size;
     //printf("n: %d\n", n);
-    for (int i = 0x3000; i < 0x3020; i++) printf("0x%04x, ", data[i]);
+    //for (int i = 0x3000; i < 0x3020; i++) printf("0x%04x, ", data[i]);
 }

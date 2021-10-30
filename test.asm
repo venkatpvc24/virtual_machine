@@ -2,5 +2,5 @@
 LEA R0, test
 PUTS
 HALT
-test .STRINGZ "VASANTHA, padala"
+test .STRINGZ "san deiago"
 .end
