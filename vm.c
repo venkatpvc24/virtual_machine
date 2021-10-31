@@ -67,7 +67,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
         //printf("sr2: %d, sr1: %d\n", __stack[sr2], __stack[sr1]);
         bool mode = (code >> 5) & 0x1;
 
-
+        //printf("%d\n", __stack[R0]);
         switch (op_code) {
             case ADD: {
 
@@ -175,7 +175,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
                     {
                        //char test = (char)__stack[R0];
                         //printf("%d\n", __stack[R0]);
-                        printf("%c\n", __stack[R0] & 0XFF);
+                        printf("%c", __stack[R0] & 0XFF);
                         //fflush(stdout);
                         break;
                     }

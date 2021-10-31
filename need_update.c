@@ -1,5 +1,58 @@
 
-#include "assembler.h"
+#include <ctype.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef enum {
+    TK_START,
+    TK_COMMA,
+    TK_SPACE,
+    TK_SEMICOLON,
+    TK_QUOTES,
+    TK_DOT,
+    TK_ALPHA,
+    TK_NUMBER
+} vm_state_t;
+
+typedef enum { TYPE_ORIG, TYPE_OPCODE, TYPE_TRAP, TYPE_LABEL, TYPE_START_END } vm_types_t;
+typedef enum
+{
+    VM_BR,
+    VM_ADD,
+    VM_LD,
+    VM_ST,
+    VM_JSR,
+    VM_AND,
+    VM_LDR,
+    VM_STR,
+    VM_RTI,
+    VM_NOT,
+    VM_LDI,
+    VM_STI,
+    VM_RET,
+    VM_RES,
+    VM_LEA,
+    VM_TRAP,
+    VM_START,
+    VM_EOL = -1
+} vm_opcode_t;
+
+typedef struct {
+    char* current;
+    int count;
+} vm_token_t;
+
+
+typedef uint16_t u16;
+typedef char* cPtr;
+
+#define TO_NUMBER(reg) (reg[1] - '0')
+
+//int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_address);
+
 
 static char line[500];
 static vm_token_t token;
@@ -77,11 +130,20 @@ vm_state_t vm_next_token() {
             c++;
             token.current = c;
             return TK_COMMA;
-        /*case '.':
-
-            op_trap.type = TYPE_ORIG;
+        case '.':
+            c++;
+            token.current = c;
+            while (isalnum(*c)) {
+                c++;
+                token.count++;
+            }
+            op_trap.opcode = vm_create_string();
+            vm_to_lower(op_trap.opcode);
+            if (strcmp(op_trap.opcode, "orig") == 0) op_trap.type = TYPE_ORIG;
+            else
+                op_trap.type = TYPE_LABEL;
             opcode_state = VM_START;
-            break;*/
+            break;
         case '\0':
         case ';':
             opcode_state = VM_EOL;
@@ -115,10 +177,6 @@ vm_state_t vm_next_token() {
             if (*c == '-') {
                 token.count++;
                 c++;
-            }
-            if (*c == '.') {
-                c++;
-                token.current = c;
             }
             while (isalnum(*c)) {
                 c++;
@@ -199,7 +257,6 @@ static void find_op_type() {
     if (strcmp(op_trap.opcode, "orig") == 0 || strcmp(op_trap.opcode, "end") == 0)
     {
         op_trap.type = TYPE_START_END;
-        return;
     }
     op_trap.type = TYPE_LABEL;
 }
@@ -246,48 +303,48 @@ u16 find_label() {
     return -1;
 }
 
-int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_address) {
+
+//int assembler(u16* data, u16 len_of_data, u16 start_address);
+
+int assembler(const char* filename/*, u16* data, u16* len_of_data, u16* start_address*/) {
     // fopen("/home/venkatpvc/test.asm", "r");
     FILE* in = fopen(filename, "r");
     int index = 0;
     //int address = *start_address; // remove later;
-    //int len = size; // remove later;
+    int len = size; // remove later;
     bool orig_initilized = false;
-    //int data[200];
+    int data[200];
     for (int i = 0; i < 100; i++)
     {
         labels[i] = label_init();
     }
 
-   while (fgets(line, 500, in)) {
+   /*while (fgets(line, 500, in)) {
         c = line;
+
+        if (*c == '.') continue;
+
         vm_next_token();
-
-        //if (*c == '.') vm_next_token();
-
-        if (opcode_state == VM_EOL) continue;
         find_op_type();
-        if (op_trap.type != TYPE_START_END &&
-            op_trap.type != TYPE_LABEL) line_number++; // count lines of opcode, traps except label
+        if (opcode_state == VM_EOL) continue;
+        if (op_trap.type != TYPE_LABEL) line_number++;
 
         if (op_trap.type == TYPE_LABEL)
         {
             labels[index]->name = malloc(sizeof(char) * token.count);
             strcpy(labels[index]->name, op_trap.opcode);
             labels[index]->line_number = line_number == 0 ? line_number + 1 : line_number;
-            token.count = 0;
             index++;
             vm_next_token();
-            if (strcmp(op_trap.opcode, "stringz") != 0 &&
-                strcmp(op_trap.opcode, "blkw") != 0 &&
-                strcmp(op_trap.opcode, "fill") != 0)
-            {
-                op_trap.opcode = vm_create_string();
-                vm_to_lower(op_trap.opcode);
-            }
-                if (strcmp(op_trap.opcode, "stringz") == 0)
+            token.count = 0;
+            vm_next_token();
+                char stringz[7];
+                sprintf(stringz, "%.*s", token.count, token.current);
+                vm_to_lower(stringz);
+                token.count = 0;
+
+                if (strcmp(stringz, "stringz") == 0)
                 {
-                //vm_next_token();
                     while (*c)
                     {
                         if (*c == '"')
@@ -301,26 +358,25 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                     }
                     line_number += size;
                 }
-                if (strcmp(op_trap.opcode, "fill") == 0)
+                if (strcmp(stringz, "fill") == 0)
                 {
                   line_number++;
                 }
 
-                if (strcmp(op_trap.opcode, "blkw") == 0)
+                if (strcmp(stringz, "blkw") == 0)
                 {
                   vm_next_token();
                   int b;
                   if (base10) b = 10;
                   if (base16) b = 16;
                   u16 value = vm_parse_number(b);
-
                   for (u16 i = 0; i < value; i++) line_number++;
                 }
         }
-    }
+    }*/
 
 
-    rewind(in);
+    //rewind(in);
     line_number = 0, size = 0;
     while (fgets(line, 500, in)) {
         c = line;
@@ -332,6 +388,9 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
         if (opcode_state == VM_EOL) continue;
         if (op_trap.type != TYPE_ORIG && op_trap.type != TYPE_LABEL) find_op_type();
 
+
+        if (!orig_initilized) op_trap.type = TYPE_ORIG;
+
         switch (op_trap.type) {
             case TYPE_ORIG:
                 {
@@ -341,8 +400,8 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                         orig_initilized = true;
                         vm_require(TK_NUMBER);
                         vm_next_token();
-                        *start_address = vm_parse_number(16);
-                        size = *start_address;
+                        int test = vm_parse_number(16);
+                        //size = *start_address;
                         //address = *start_address;
                         vm_next_token();
 
@@ -509,16 +568,6 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                 }
                 break;
             case TYPE_LABEL:
-                    op_trap.opcode = vm_create_string();
-                    vm_to_lower(op_trap.opcode);
-                 if (strcmp(op_trap.opcode, "stringz") != 0 &&
-                     strcmp(op_trap.opcode, "blkw") != 0 &&
-                     strcmp(op_trap.opcode, "fill") != 0)
-                {
-                    vm_next_token();
-                    op_trap.opcode = vm_create_string();
-                    vm_to_lower(op_trap.opcode);
-                }
                  if (strcmp(op_trap.opcode, "fill") == 0)
                     {
                       vm_next_token();
@@ -556,7 +605,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
 
                     if (strcmp(op_trap.opcode, "stringz") == 0)
                     {
-                            vm_next_token();
+                            //vm_next_token();
                              while (*c) {
                                 if (*c == '"') {
                                     c++;
@@ -585,4 +634,8 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
     //*len_of_data = size;
     //printf("n: %d\n", n);
     for (int i = 0; i < size; i++) printf("0x%04x, ", data[i]);
+}
+int main()
+{
+    assembler("/home/venkatpvc/test1.asm");
 }
