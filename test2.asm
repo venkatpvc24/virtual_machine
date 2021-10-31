@@ -1,7 +1,7 @@
 
 .ORIG x3000      ; print out an abbreviation of the i-th month
        LD  R0, I        ; get the index;
-       ADD R0, R0, #2  ; convert to 0 based index
+       ADD R0, R0, #4  ; convert to 0 based index
        ADD R0, R0, R0
        ADD R0, R0, R0   ; R0 = 4*I (sizeof each entry is 4)
        LEA R1, MONTHS   ; R1 is the address of the beginning of the array

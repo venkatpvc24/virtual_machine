@@ -20,6 +20,6 @@ int main(int argc, char** argv)
   u16 start_address = 0;
   u16 len_of_data = 0;
   assembler(filename, __stack, &len_of_data, &start_address);
-  for (int i = 12288; i < 12345; i++) printf("0x%04x, ", __stack[i]);
+  //for (int i = 12288; i < 12345; i++) printf("0x%04x, ", __stack[i]);
   execute_instructions(__stack, start_address);
 }

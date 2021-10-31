@@ -538,7 +538,8 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
 
                     if (strcmp(op_trap.opcode, "blkw") == 0)
                     {
-                      vm_next_token();
+                      vm_require(TK_NUMBER);
+                      //vm_next_token();
                       int b;
                       if (base10) b = 10;
                       if (base16) b = 16;
@@ -586,5 +587,5 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
     //printf("size: %d\n", size);
     //
     //for (int i = 0x3000; i < size; i++) printf("0x%04x, ", data[i]);
-    printf("\n\n\n");
+    //printf("\n\n\n");
 }
