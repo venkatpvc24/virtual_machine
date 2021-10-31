@@ -321,7 +321,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
 
 
     rewind(in);
-    line_number = 0, size = 0;
+    line_number = 0, size = 0x3000; *start_address = 0x3000;
     while (fgets(line, 500, in)) {
         c = line;
         //printf("buf: %s\n", c);
@@ -528,7 +528,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                       //int imme = vm_parse_number(b);
                       u16 value = vm_parse_number(b);
                       data[size++] = value;
-                      line_number += size;
+                      line_number = size;
                       vm_next_token();
 
                       if (opcode_state != VM_EOL) {
@@ -545,7 +545,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                       //int imme = vm_parse_number(b);
                       u16 value = vm_parse_number(b);
                       for (u16 i = 0; i < value; i++) data[size++] = 0;
-                      line_number += size;
+                      line_number = size;
 
                       vm_next_token();
 
@@ -568,7 +568,7 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                                 c++;
                             }
                             data[size++] = '\0';
-                            line_number += size;
+                            line_number = size;
 
                             vm_next_token();
 
@@ -583,6 +583,8 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
         }
     }
     //*len_of_data = size;
-    //printf("n: %d\n", n);
-    for (int i = 0; i < size; i++) printf("0x%04x, ", data[i]);
+    //printf("size: %d\n", size);
+    //
+    //for (int i = 0x3000; i < size; i++) printf("0x%04x, ", data[i]);
+    printf("\n\n\n");
 }

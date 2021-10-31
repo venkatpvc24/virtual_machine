@@ -46,7 +46,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
 
     uint16_t ip = start_address;
     //printf("ip: 0x%04x\n", ip);
-
+    //for (int i = 0x3000; i < 12345; i++) printf("0x%04x, ", __stack[i]);
     uint16_t* test;
     test = __stack;
     /*for (int i = 0; i < size; i++) {
@@ -67,7 +67,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
         //printf("sr2: %d, sr1: %d\n", __stack[sr2], __stack[sr1]);
         bool mode = (code >> 5) & 0x1;
 
-        //printf("%d\n", __stack[R0]);
+        //git printf("%d\n", __stack[R0]);
         switch (op_code) {
             case ADD: {
 
