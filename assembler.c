@@ -270,6 +270,11 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
 {
     // fopen("/home/venkatpvc/test.asm", "r");
     FILE* in = fopen(filename, "r");
+    if (in == NULL)
+    {
+      pritnf("error file could not opened\n");
+      exit(EXIT_FAILURE);
+    }
     int index = 0;
     //int address = *start_address; // remove later;
     //int len = size; // remove later;
