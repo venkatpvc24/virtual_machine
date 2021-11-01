@@ -7,9 +7,6 @@
 uint16_t __stack[USHRT_MAX];
 
 
-
-
-
 int main(int argc, char** argv)
 {
   if(argc < 2)
@@ -22,4 +19,5 @@ int main(int argc, char** argv)
   assembler(filename, __stack, &len_of_data, &start_address);
   //for (int i = 12288; i < 12345; i++) printf("0x%04x, ", __stack[i]);
   execute_instructions(__stack, start_address);
+
 }

@@ -17,7 +17,8 @@ typedef enum {
     TK_QUOTES,
     TK_DOT,
     TK_ALPHA,
-    TK_NUMBER
+    TK_NUMBER,
+    TK_EOL
 } vm_state_t;
 
 typedef enum { TYPE_ORIG, TYPE_OPCODE, TYPE_TRAP, TYPE_LABEL, TYPE_START_END } vm_types_t;
@@ -54,7 +55,7 @@ typedef char* cPtr;
 
 #define TO_NUMBER(reg) (reg[1] - '0')
 
-int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_address);
+int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addres);
 
 #endif
 
