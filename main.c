@@ -4,11 +4,12 @@
 #include "assembler.h"
 #include "vm.h"
 
-uint16_t __stack[USHRT_MAX];
+
 
 
 int main(int argc, char** argv)
 {
+  uint16_t __stack[USHRT_MAX];
   if(argc < 2)
   {
     printf("need source file to execute");

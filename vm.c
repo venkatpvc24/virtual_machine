@@ -39,23 +39,7 @@ static uint16_t sign_extend(uint16_t x, int bit_count)
 
 int execute_instructions(uint16_t* __stack, uint16_t start_address)
 {
-
-  //uint16_t __stack[USHRT_MAX];
-
-    // memset(__stack, 0, sizeof __stack);
-
     uint16_t ip = start_address;
-    //printf("ip: 0x%04x\n", ip);
-    //for (int i = 0x3000; i < 12345; i++) printf("0x%04x, ", __stack[i]);
-    uint16_t* test;
-    test = __stack;
-    /*for (int i = 0; i < size; i++) {
-        __stack[ip + i] = data[i];
-        printf("ip: 0x%04x <--> code: 0x%04x, ", ip+i, __stack[ip+i]);
-    }*/
-
-  //for (int i = start_address; i < 0x3002; i++) printf("0x%04x, ",__stack[i]);
-
     bool running = true;
 
     while (running) {
@@ -168,7 +152,7 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
                 {
                     case GETC:
                     {
-                        __stack[R0] = (uint16_t)getchar(); getchar(); //(uint16_t)getchar();
+                        __stack[R0] = (uint16_t)getchar(); //(uint16_t)getchar();
                         break;
                     }
                     case OUT:
@@ -190,7 +174,8 @@ int execute_instructions(uint16_t* __stack, uint16_t start_address)
                         break;
                     case IN:
                         printf("$ ");
-                        __stack[0] = (uint16_t)getchar(); getchar();
+                        __stack[R0] = (uint16_t)getchar();
+                        break;
                     case HALT:
                         exit(EXIT_SUCCESS);
                         break;
