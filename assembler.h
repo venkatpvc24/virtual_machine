@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef uint16_t u16;
+typedef char* cPtr;
+
+
 typedef enum {
     TK_START,
     TK_COMMA,
@@ -49,9 +53,18 @@ typedef struct {
     int count;
 } vm_token_t;
 
+typedef struct {
+    cPtr name;
+    int line_number;
+} label_t;
 
-typedef uint16_t u16;
-typedef char* cPtr;
+typedef struct {
+    int type;
+    int current;
+    cPtr opcode;
+} op_trap_t;
+
+
 
 #define TO_NUMBER(reg) (reg[1] - '0')
 

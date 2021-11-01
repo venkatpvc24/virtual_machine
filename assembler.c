@@ -4,6 +4,7 @@
 static char line[500];
 static vm_token_t token;
 static vm_opcode_t opcode_state;
+static op_trap_t op_trap;
 static char* c;
 static bool base10 = false;
 static bool base16 = false;
@@ -20,9 +21,9 @@ static const int op_codes[17] = {5861625, 193432126, 5861941, 5862188, 193442436
 static const int traps[5] = {2088851025, 2088510152, 2088541486, 5861852, 193447949};
 
 
-vm_state_t vm_next_token(void);
+static vm_state_t vm_next_token(void);
 
-int vm_string_hashing(const char* s)
+static int vm_string_hashing(const char* s)
 {
     int hash = 5381;
     while(*s)
@@ -40,7 +41,7 @@ static void vm_to_lower(char* word) {
     }
 }
 
-int vm_parse_number(int base) {
+static int vm_parse_number(int base) {
     vm_next_token();
     char* end;
     char* reg = malloc(sizeof(char) * token.count);
@@ -51,7 +52,7 @@ int vm_parse_number(int base) {
 }
 
 
-char* vm_create_string(void) {
+static char* vm_create_string(void) {
     char* dest = malloc(sizeof(char) * token.count + 1);
     sprintf(dest, "%.*s", token.count, token.current);
     vm_to_lower(dest);
@@ -60,15 +61,7 @@ char* vm_create_string(void) {
 }
 
 
-typedef struct {
-    int type;
-    int current;
-    cPtr opcode;
-} op_trap_t;
-
-op_trap_t op_trap;
-
-vm_state_t vm_next_token(void)
+static vm_state_t vm_next_token(void)
 {
     while (isspace(*c)) ++c;
 
@@ -140,11 +133,12 @@ vm_state_t vm_next_token(void)
         opcode_state = TK_ALPHA;
     }
     }
+    return -1;
 }
 
 
 
-u16 vm_is_register(void) {
+static u16 vm_is_register(void) {
     vm_next_token();
     char* reg = malloc(sizeof(char) * token.count);
     sprintf(reg, "%.*s", token.count, token.current);
@@ -161,7 +155,7 @@ u16 vm_is_register(void) {
     return reg[1] - '0';
 }
 
-int vm_get_op(cPtr op_code) {
+static int vm_get_op(cPtr op_code) {
     //vm_to_lower(op_code);
     if (op_code[0] == 'b' && op_code[1] == 'r') return 0;
 
@@ -214,18 +208,13 @@ static void find_op_type(void) {
 }
 
 
-typedef struct {
-    cPtr name;
-    int line_number;
-} label_t;
-
-void label_init(label_t label)
+static void label_init(label_t label)
 {
   label.name = NULL;
   label.line_number = 0;
 }
 
-u16 find_label(label_t* labels) {
+static u16 find_label(label_t* labels) {
     char* label = vm_create_string();
     vm_to_lower(label);
     if (isdigit(label[0]))
