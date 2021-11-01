@@ -14,14 +14,26 @@ static int line_number = 0;
 u16 size = 0;
 
 
-static const char* op_codes[17] = {"br",  "add", "ld",  "st",   "jsr",   "and",
-                                   "ldr", "str", "rti", "not",  "ldi",   "sti",
-                                   "ret", "res", "lea", "trap", "pesudo"};
+static const int op_codes[17] = {5861625, 193432126, 5861941, 5862188, 193442436, 193432456, 193444119,
+                                         193452270, 193451172, 193446662, 193444110, 193452261, 193450688,
+                                         193450687, 193444135, 2088990876, -1592907371};
 
-static const char* traps[5] = {"puts", "getc", "halt", "in", "out"};
+static const int traps[5] = {2088851025, 2088510152, 2088541486, 5861852, 193447949};
 
 
 vm_state_t vm_next_token();
+
+int vm_string_hashing(const char* s)
+{
+    int hash = 5381;
+    while(*s)
+    {
+        hash = (hash << 5) + hash + *s - '0';
+        s++;
+    }
+
+    return hash;
+}
 
 static void vm_to_lower(char* token) {
     for (size_t i = 0; i < strlen(token); i++) {
@@ -161,11 +173,11 @@ u16 vm_is_register() {
 }
 
 int vm_get_op(cPtr op_code) {
-    vm_to_lower(op_code);
+    //vm_to_lower(op_code);
     if (op_code[0] == 'b' && op_code[1] == 'r') return 0;
 
     for (int i = 0; i < 17; i++) {
-        if (strcmp(op_code, op_codes[i]) == 0) {
+        if (vm_string_hashing(op_code) == op_codes[i]) {
             return i;
         }
     }
@@ -176,10 +188,10 @@ int vm_get_op(cPtr op_code) {
 
 
 static int vm_get_trap(char* trap) {
-    vm_to_lower(trap);
+    //vm_to_lower(trap);
 
     for (int i = 0; i < 5; i++) {
-        if (strcmp(trap, traps[i]) == 0) {
+        if (vm_string_hashing(trap) == traps[i]) {
             return i;
         }
     }
@@ -372,11 +384,6 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                 {
                     u16 base = 0;
 
-                    if (base == -1)
-                    {
-                        fprintf(stderr, "invalid opcode - %s", op_codes[base]);
-                    }
-
                     base = (op_trap.current << 12) | (vm_is_register() << 9);
                     __require = vm_next_token();
                     if (__require != TK_COMMA) printf("error\n");
@@ -412,10 +419,6 @@ int assembler(const char* filename, u16* data, u16* len_of_data, u16* start_addr
                     u16 base = 0;
                     base = vm_get_op(op_trap.opcode);
 
-                    if (base == -1)
-                    {
-                        fprintf(stderr, "invalid opcode - %s", op_codes[base]);
-                    }
 
                     char c1 = op_trap.opcode[2];
                     char c2 = op_trap.opcode[3];
