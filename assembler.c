@@ -143,7 +143,6 @@ static u16 vm_is_register(void) {
     char* reg = malloc(sizeof(char) * token.count);
     sprintf(reg, "%.*s", token.count, token.current);
     token.count = 0;
-    //printf("reg: %s\n", reg);
     bool is_register = (strlen(reg) == 2 && (reg[0] == 'r' || reg[0] == 'R') &&
                         (reg[1] >= '0' && reg[1] <= '7'))
                            ? true
@@ -156,7 +155,6 @@ static u16 vm_is_register(void) {
 }
 
 static int vm_get_op(cPtr op_code) {
-    //vm_to_lower(op_code);
     if (op_code[0] == 'b' && op_code[1] == 'r') return 0;
 
     for (int i = 0; i < 17; i++) {
@@ -171,8 +169,6 @@ static int vm_get_op(cPtr op_code) {
 
 
 static int vm_get_trap(char* trap) {
-    //vm_to_lower(trap);
-
     for (int i = 0; i < 5; i++) {
         if (vm_string_hashing(trap) == traps[i]) {
             return i;
@@ -216,7 +212,6 @@ static void label_init(label_t label)
 
 static u16 find_label(label_t* labels) {
     char* label = vm_create_string();
-    vm_to_lower(label);
     if (isdigit(label[0]))
     {
         int base = base10 ? 10 : 16;
@@ -241,7 +236,6 @@ static u16 find_label(label_t* labels) {
 
 void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_address)
 {
-    // fopen("/home/venkatpvc/test.asm", "r");
     FILE* in = fopen(filename, "r");
     if (in == NULL)
     {
@@ -249,10 +243,8 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
       exit(EXIT_FAILURE);
     }
     int index = 0;
-    //int address = *start_address; // remove later;
-    //int len = size; // remove later;
-    bool orig_initilized = false;
     int __require;
+    bool orig_initilized = false;
 
     label_t labels[100];
 
@@ -284,7 +276,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
             }
             if (__require != TK_DOT)
             {
-                //printf("%.*s\n", token.count, token.current);
                 token.count = 0;
                 __require = vm_next_token();
             }
@@ -335,7 +326,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
     while (fgets(line, 500, in))
     {
         c = line;
-        //printf("buf: %s\n", c);
         is_reg = true;
         base16 = false;
         base10 = false;
@@ -352,7 +342,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
         switch (op_trap.type)
         {
         case TYPE_OPCODE:
-            //printf("oh it's opcode\n");
             switch (op_trap.current)
             {
             case VM_ADD:
@@ -421,10 +410,8 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
             {
                 u16 base = 0;
                 line_number++;
-                //printf("current: %d\n", op_trap.current);
                 base = (op_trap.current << 12);
 
-                //printf("base: %d\n", base);
                 base |= (vm_is_register() << 9);
 
                 __require = vm_next_token();
@@ -483,7 +470,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
             break;
         case TYPE_TRAP:
         {
-            //printf("oh it's trap\n");
             opcode_state = VM_EOL;
             u16 base = 0xF000;
             if (strcmp(op_trap.opcode, "getc") == 0) base |= (0x20 & 0xFF);
@@ -505,7 +491,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
             {
                 vm_next_token();
                 op_trap.opcode = vm_create_string();
-                //printf("opcode: %s\n", op_trap.opcode);
                 token.count = 0;
             }
             if (strcmp(op_trap.opcode, "orig") == 0)
@@ -525,7 +510,7 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
             }
             if (strcmp(op_trap.opcode, "end") == 0)
             {
-                //printf("size: %d\n", size);
+
                 *len_of_data = size;
                 return;
             }
@@ -536,7 +521,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
                 int b = 0;
                 if (base10) b = 10;
                 if (base16) b = 16;
-                //int imme = vm_parse_number(b);
                 u16 value = vm_parse_number(b);
                 data[size++] = value;
                 line_number = size;
@@ -551,7 +535,6 @@ void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_add
                 int b = 0;
                 if (base10) b = 10;
                 if (base16) b = 16;
-                //int imme = vm_parse_number(b);
                 u16 value = vm_parse_number(b);
                 for (u16 i = 0; i < value; i++) data[size++] = 0;
                 line_number = size;
