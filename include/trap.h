@@ -1,7 +1,7 @@
 #ifndef TRAP_H
 #define TRAP_H
 
-#include "assembler.h"
+#include "./assembler.h"
 
 
 typedef struct

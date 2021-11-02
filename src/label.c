@@ -1,5 +1,5 @@
-#include "assembler.h"
-#include "label.h"
+#include "../include/assembler.h"
+#include "../include/label.h"
 
 
 extern u16 line_number, size, start_address;

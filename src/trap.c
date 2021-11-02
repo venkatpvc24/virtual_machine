@@ -1,6 +1,5 @@
-#include "trap.h"
-
-#include "assembler.h"
+#include "../include/trap.h"
+#include "../include/assembler.h"
 
 extern u16 line_number, size;
 extern u16 data[USHRT_MAX];

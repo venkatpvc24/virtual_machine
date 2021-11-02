@@ -1,7 +1,7 @@
 #ifndef OPCODE_H
 #define OPCODE_H
 
-#include "assembler.h"
+#include "./assembler.h"
 
 typedef struct
 {

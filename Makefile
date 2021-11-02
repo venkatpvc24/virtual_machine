@@ -1,22 +1,45 @@
-INCLUDE := ./include
-SRC := ./src
-OBJ := ./obj
-SRCS := $(wildcard $(SRC)/*.c)
+PROJDIR = $(realpath $(CURDIR)/.)
+SOURCEDIR = $(PROJDIR)/src
+INCLUDEDIR = $(PROJDIR)/include
+OBJDIR = $(PROJDIR)/obj
 
-CC := gcc #gcc
+dirs:
+	@ echo $(PROJDIR)
+	@ echo $(SOURCEDIR)
+	@ echo $(INCLUDEDIR)
 
-CFLAGS := -std=c11 -g -Wall -Wextra -Wpedantic  -Wformat=2  \
-											-Wno-unused-parameter -Wshadow -Wwrite-strings -Wstrict-prototypes -Wold-style-definition  \
-											-Wredundant-decls -Wnested-externs -Wmissing-include-dirs -O2
+TARGET = vm
 
-# debug := CFLAGS += -g
+VERBOSE = TRUE
 
-objects = main.o trap.o opcode.o label.o assembler.o vm.o 
+CC := gcc 
 
+CFLAGS := -std=c11 -g 
 
-main debug: main.o trap.o opcode.o label.o assembler.o vm.o
-	$(CC) $(CFLAGS) -o $@ $^ -Wall -O2
+# -Wall -Wextra -Wpedantic  -Wformat=2  \
+# -Wno-unused-parameter -Wshadow -Wwrite-strings -Wstrict-prototypes -Wold-style-definition  \
+# -Wredundant-decls -Wnested-externs -Wmissing-include-dirs -O2
 
+ifeq ($(VERBOSE), TRUE)
+	HIDE = 
+else
+	HIDE = @
+endif
+
+all: $(TARGET)
+
+SOURCES := $(shell find $(SOURCEDIR) -type f -printf '%f\n')
+
+OBJS = $(addprefix $(OBJDIR)/, $(SOURCES:%.c=%.o))
+
+print:
+	@echo $(SOURCES)
+	
+$(TARGET): main.o $(OBJS)
+	$(CC) $(CFLAGS) $^ -o $(TARGET)
+
+$(OBJDIR)/%.o: $(SOURCEDIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 
 clean:

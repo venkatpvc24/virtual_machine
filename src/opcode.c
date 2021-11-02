@@ -1,4 +1,4 @@
-#include "opcode.h"
+#include "../include/opcode.h"
 
 extern u16 line_number, size;
 extern u16 data[USHRT_MAX];

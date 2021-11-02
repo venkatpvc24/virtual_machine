@@ -1,7 +1,7 @@
 #ifndef LABEL_H
 #define LABEL_H
 
-#include "assembler.h"
+#include "./assembler.h"
 
 
 

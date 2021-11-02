@@ -1,8 +1,8 @@
 
-#include "assembler.h"
-#include "label.h"
-#include "opcode.h"
-#include "trap.h"
+#include "../include/assembler.h"
+#include "../include/label.h"
+#include "../include/opcode.h"
+#include "../include/trap.h"
 
 
 char* c;

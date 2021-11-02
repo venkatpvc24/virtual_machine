@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include "assembler.h"
-#include "vm.h"
+#include "include/assembler.h"
+#include "include/vm.h"
 
 extern u16 start_address;
 

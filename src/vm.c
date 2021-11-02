@@ -7,7 +7,7 @@
 // #include "LC.h"
 // #include "utilities.h"
 
-#include "vm.h"
+#include "../include/vm.h"
 
 
 void update_flags(uint16_t r, uint16_t* __stack)
