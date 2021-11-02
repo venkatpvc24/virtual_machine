@@ -11,13 +11,14 @@ CFLAGS := -std=c11 -g -Wall -Wextra -Wpedantic  -Wformat=2  \
 
 # debug := CFLAGS += -g
 
-objects = main.o assembler.o vm.o
+objects = main.o trap.o opcode.o label.o assembler.o vm.o 
 
 
-main debug: main.o assembler.o vm.o
+main debug: main.o trap.o opcode.o label.o assembler.o vm.o
 	$(CC) $(CFLAGS) -o $@ $^ -Wall -O2
 
 
 
 clean:
-	rm -f /p/a/t/h main main.o debug debug.o assembler.o vm.o parser.o
+	@ find -name "*.o" -type f -delete
+	@ echo "deleted all files with extension '.o'"

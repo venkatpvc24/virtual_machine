@@ -1,32 +1,38 @@
 
 #include "assembler.h"
+#include "label.h"
+#include "opcode.h"
+#include "trap.h"
 
-static char line[500];
-static vm_token_t token;
-static vm_opcode_t opcode_state;
-static op_trap_t op_trap;
-static char* c;
-static bool base10 = false;
-static bool base16 = false;
-static bool is_reg;
-static int line_number = 0;
 
+char* c;
+bool base10 = false;
+bool base16 = false;
+int __require = 0;
+bool is_orig_initialized = false;
+bool is_reg = false;
+int line_number = 0;
 u16 size = 0;
+u16 start_address = 0;
 
+label_t labels[100];
 
-static const int op_codes[17] = {5861625, 193432126, 5861941, 5862188, 193442436, 193432456, 193444119,
+extern u16 data[USHRT_MAX];
+
+const int op_codes[17] = {5861625, 193432126, 5861941, 5862188, 193442436, 193432456, 193444119,
                                          193452270, 193451172, 193446662, 193444110, 193452261, 193450688,
                                          193450687, 193444135, 2088990876, -1592907371};
 
-static const int traps[5] = {2088851025, 2088510152, 2088541486, 5861852, 193447949};
+
+// static const char* traps[5] = {"getc", "out", "puts", "in", "halt"};
+
+const int traps[] = {2088510152, 193447949, 2088851025, 5861852, 2088541486};
 
 
-static vm_state_t vm_next_token(void);
-
-static int vm_string_hashing(const char* s)
+int vm_string_hashing(const char *s)
 {
     int hash = 5381;
-    while(*s)
+    while (*s)
     {
         hash = (hash << 5) + hash + *s - '0';
         s++;
@@ -35,35 +41,38 @@ static int vm_string_hashing(const char* s)
     return hash;
 }
 
-static void vm_to_lower(char* word) {
-    for (size_t i = 0; i < strlen(word); i++) {
-        if (isupper(word[i])) word[i] |= 32;
+void vm_to_lower(char *word)
+{
+    for (size_t i = 0; i < strlen(word); i++)
+    {
+        if (isupper(word[i]))
+            word[i] |= 32;
     }
 }
 
-static int vm_parse_number(int base) {
+int vm_parse_number(int base)
+{
     vm_next_token();
-    char* end;
-    char* reg = malloc(sizeof(char) * token.count);
+    char *end;
+    char *reg = malloc(sizeof(char) * token.count);
     sprintf(reg, "%.*s", token.count, token.current);
     int number = strtoul(reg, &end, base);
     token.count = 0;
     return number;
 }
 
-
-static char* vm_create_string(void) {
-    char* dest = malloc(sizeof(char) * token.count + 1);
+char *vm_create_string(void)
+{
+    char *dest = malloc(sizeof(char) * token.count + 1);
     sprintf(dest, "%.*s", token.count, token.current);
     vm_to_lower(dest);
     token.count = 0;
     return dest;
 }
 
-
-static vm_state_t vm_next_token(void)
+vm_state_t vm_next_token(void)
 {
-    while (isspace(*c)) ++c;
+    while (*c == ' ') ++c;
 
     switch (*c)
     {
@@ -86,6 +95,7 @@ static vm_state_t vm_next_token(void)
         break;*/
     case ';':
     case '\0':
+    case '\n':
         return TK_EOL;
     case '\'':
         c++;
@@ -106,7 +116,7 @@ static vm_state_t vm_next_token(void)
         if (*c == '#')
         {
             base10 = true;
-            base16= false;
+            base16 = false;
             is_reg = false;
             c++;
             token.current = c;
@@ -136,11 +146,10 @@ static vm_state_t vm_next_token(void)
     return -1;
 }
 
-
-
-static u16 vm_is_register(void) {
+u16 vm_is_register(void)
+{
     vm_next_token();
-    char* reg = malloc(sizeof(char) * token.count);
+    char *reg = malloc(sizeof(char) * token.count);
     sprintf(reg, "%.*s", token.count, token.current);
     token.count = 0;
     bool is_register = (strlen(reg) == 2 && (reg[0] == 'r' || reg[0] == 'R') &&
@@ -148,70 +157,78 @@ static u16 vm_is_register(void) {
                            ? true
                            : false;
 
-    if (!is_register) {
+    if (!is_register)
+    {
         fprintf(stderr, "expect register, but got this, %s\n", reg);
     }
     return reg[1] - '0';
 }
 
-static int vm_get_op(cPtr op_code) {
-    if (op_code[0] == 'b' && op_code[1] == 'r') return 0;
-
-    for (int i = 0; i < 17; i++) {
-        if (vm_string_hashing(op_code) == op_codes[i]) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-
-
-static int vm_get_trap(char* trap) {
-    for (int i = 0; i < 5; i++) {
-        if (vm_string_hashing(trap) == traps[i]) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-
-static void find_op_type(void) {
-    op_trap.opcode = vm_create_string();
-    int op = vm_get_op(op_trap.opcode);
-
-    if (op != -1) {
-        op_trap.type = TYPE_OPCODE;
-        op_trap.current = op;
-        return;
-    }
-
-    int trap = vm_get_trap(op_trap.opcode);
-    if (trap != -1) {
-        op_trap.type = TYPE_TRAP;
-        op_trap.current = trap;
-        return;
-    }
-
-    if (strcmp(op_trap.opcode, "orig") == 0 || strcmp(op_trap.opcode, "end") == 0)
-    {
-        op_trap.type = TYPE_START_END;
-        return;
-    }
-    op_trap.type = TYPE_LABEL;
-}
-
-
-static void label_init(label_t label)
+int vm_get_op(cPtr op_code)
 {
-  label.name = NULL;
-  label.line_number = 0;
+    if (op_code[0] == 'b' && op_code[1] == 'r')
+        return 0;
+
+    for (int i = 0; i < 17; i++)
+    {
+        if (vm_string_hashing(op_code) == op_codes[i])
+        {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
-static u16 find_label(label_t* labels) {
-    char* label = vm_create_string();
+int vm_get_trap(char *trap)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        if (vm_string_hashing(trap) == traps[i])
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void find_op_type(void)
+{
+    parser.opcode = vm_create_string();
+    int op = vm_get_op(parser.opcode);
+
+    if (op != -1)
+    {
+        parser.type = TYPE_OPCODE;
+        parser.current = op;
+        return;
+    }
+
+    int trap = vm_get_trap(parser.opcode);
+    if (trap != -1)
+    {
+        parser.type = TYPE_TRAP;
+        parser.current = trap;
+        return;
+    }
+
+    if (strcmp(parser.opcode, "orig") == 0 || strcmp(parser.opcode, "end") == 0)
+    {
+        parser.type = TYPE_START_END;
+        return;
+    }
+    parser.type = TYPE_LABEL;
+}
+
+void label_init(label_t label)
+{
+    label.name = NULL;
+    label.line_number = 0;
+}
+
+u16 find_label(void)
+{
+    char *label = vm_create_string();
     if (isdigit(label[0]))
     {
         int base = base10 ? 10 : 16;
@@ -221,353 +238,67 @@ static u16 find_label(label_t* labels) {
     else
     {
 
-        for (int i = 0; i < 100; i++) {
-            if (labels[0].name != NULL) {
+        for (int i = 0; i < 100; i++)
+        {
+            if (labels[i].name != NULL)
+            {
                 if (strcmp(labels[i].name, label) == 0)
                 {
                     return labels[i].line_number - line_number;
                 }
             }
-         }
-      }
+        }
+    }
 
     return -1;
 }
 
-void assembler(const char* filename, u16* data, u16* len_of_data, u16* start_address)
+void assembler(const char *filename, u16 *len_of_data)
 {
-    FILE* in = fopen(filename, "r");
+    FILE *in = fopen(filename, "r");
     if (in == NULL)
     {
-      printf("error file could not opened\n");
-      exit(EXIT_FAILURE);
+        printf("error file could not opened\n");
+        exit(EXIT_FAILURE);
     }
     int index = 0;
-    int __require;
-    bool orig_initilized = false;
-
-    label_t labels[100];
-
-    for (int i = 0; i < 100; i++) label_init(labels[i]);
-
-    while (fgets(line, 500, in))
-    {
-        c = line;
-        __require = vm_next_token();
-
-
-        if (__require == TK_EOL) continue;
-
-        if (__require == TK_DOT) op_trap.type = TYPE_LABEL;
-        else
-            find_op_type();
-
-        if (op_trap.type != TYPE_LABEL) line_number++; // count lines of opcode, traps except label
-
-        if (op_trap.type == TYPE_LABEL)
-        {
-            if (__require != TK_DOT)
-            {
-                labels[index].name = malloc(sizeof(char) * token.count);
-                strcpy(labels[index].name, op_trap.opcode);
-                labels[index].line_number = line_number == 0 ? line_number + 1 : line_number;
-                token.count = 0;
-                index++;
-            }
-            if (__require != TK_DOT)
-            {
-                token.count = 0;
-                __require = vm_next_token();
-            }
-            if (__require == TK_DOT)
-            {
-                vm_next_token();
-                op_trap.opcode = vm_create_string();
-                token.count = 0;
-
-            }
-            if (strcmp(op_trap.opcode, "stringz") == 0)
-            {
-              __require = vm_next_token();
-                  if (__require != TK_QUOTES) printf("error\n");
-                while (*c)
-                {
-                    if (*c == '"')
-                    {
-                        c++;
-                        continue;
-                    }
-                    if (*c == '\n') break;
-                    c++;
-                    size++;
-                }
-                line_number += size++;
-            }
-            if (strcmp(op_trap.opcode, "fill") == 0)
-            {
-                line_number++;
-            }
-
-            if (strcmp(op_trap.opcode, "blkw") == 0)
-            {
-              __require = vm_next_token();
-                  if (__require != TK_NUMBER) printf("error\n");
-                int b = base10 ? 10 : 16;
-                u16 value = vm_parse_number(b);
-
-                for (u16 i = 0; i < value; i++) line_number++;
-            }
-        }
-    }
-
+    char line[500];
+    
+    collect_labels(index, in, line);
 
     rewind(in);
     line_number = 0, size = 0;
+
     while (fgets(line, 500, in))
     {
         c = line;
-        is_reg = true;
-        base16 = false;
-        base10 = false;
         __require = vm_next_token();
-        if (__require == TK_EOL) continue;
-        if (__require == TK_DOT) op_trap.type = TYPE_LABEL;
+        if (__require == TK_EOL)
+            continue;
+        if (__require == TK_DOT)
+            parser.type = TYPE_LABEL;
         else
             find_op_type();
-        if (line_number > 0 && orig_initilized != true)
+        if (line_number > 0 && is_orig_initialized != true)
         {
             printf("program must start with orig\n");
             exit(EXIT_FAILURE);
         }
-        switch (op_trap.type)
+        switch (parser.type)
         {
-        case TYPE_OPCODE:
-            switch (op_trap.current)
-            {
-            case VM_ADD:
-            case VM_AND:
-                line_number++;
-                {
-                    u16 base = 0;
-
-                    base = (op_trap.current << 12) | (vm_is_register() << 9);
-                    __require = vm_next_token();
-                    if (__require != TK_COMMA) printf("error\n");
-
-                    base |= (vm_is_register() << 6);
-                    __require = vm_next_token();
-                    if (__require != TK_COMMA) printf("error\n");
-
-                    vm_next_token();
-
-                    if (!is_reg)
-                    {
-                        int b = 0;
-                        if (base10) b = 10;
-                        if (base16) b = 16;
-                        int imme = vm_parse_number(b);
-                        base |= (1 << 5) | (imme & 0x1F);
-                    }
-                    else
-                    {
-                        base |= (0 << 5) | (vm_is_register() & 0x07);
-                    }
-
-                    __require = vm_next_token();
-                    if (__require != TK_EOL) printf("error\n");
-
-                    data[size++] = base;
-                }
+            case TYPE_OPCODE:
+                opcode_parser();
                 break;
-            case VM_BR:
-                line_number++;
-                {
-                    u16 base = 0;
-                    base = vm_get_op(op_trap.opcode);
-
-
-                    char c1 = op_trap.opcode[2];
-                    char c2 = op_trap.opcode[3];
-                    char c3 = op_trap.opcode[4];
-
-                    base = (base << 12);
-                    base |= (c1 == 'n' ? (1 << 11) : (0 << 11));
-                    base |= (c1 == 'z' || c2 == 'z' ? (1 << 10) : (0 << 10));
-                    base |= (c1 == 'p' || c2 == 'p' || c3 == 'p' ? (1 << 9) : (0 << 9));
-
-
-                    vm_next_token();
-
-                    base |= (find_label(labels) & 0x1FF);
-                    data[size++] = base;
-                }
+            case TYPE_TRAP:
+                trap_parser();
                 break;
-            case VM_LDI:
-            case VM_LD:
-            case VM_ST:
-            case VM_STI:
-            case VM_LEA:
-            {
-                u16 base = 0;
-                line_number++;
-                base = (op_trap.current << 12);
-
-                base |= (vm_is_register() << 9);
-
-                __require = vm_next_token();
-                if (__require != TK_COMMA) printf("error\n");
-
-                vm_next_token();
-                base |= (find_label(labels) & 0x1FF);
-
-
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-
-                data[size++] = base;
-
-            }
-            break;
-            case VM_JSR:
-                line_number++;
-                {
-                    u16 base = (op_trap.current << 12);
-                    vm_next_token();
-                    base |= (1 << 11) | (find_label(labels) & 0x7FF);
-
-                    __require = vm_next_token();
-                    if (__require != TK_EOL) printf("error\n");
-                    data[size++] = base;
-                }
+            case TYPE_LABEL:
+                label_pesudo_parser();
                 break;
-            case VM_LDR:
-            case VM_STR:
-            {
-                line_number++;
-                u16 base = 0;
-
-                base = (op_trap.current << 12) | (vm_is_register() << 9);
-                __require = vm_next_token();
-                if (__require != TK_COMMA) printf("error\n");
-
-                base |= (vm_is_register() << 6);
-
-                __require = vm_next_token();
-                if (__require != TK_COMMA) printf("error\n");
-
-                vm_next_token();
-
-                base |= (find_label(labels) & 0x3F);
-
-
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-
-                data[size++] = base;
-            }
-            }
-            opcode_state = VM_EOL;
-            break;
-        case TYPE_TRAP:
-        {
-            opcode_state = VM_EOL;
-            u16 base = 0xF000;
-            if (strcmp(op_trap.opcode, "getc") == 0) base |= (0x20 & 0xFF);
-            if (strcmp(op_trap.opcode, "out") == 0) base |= (0x21 & 0xFF);
-            if (strcmp(op_trap.opcode, "puts") == 0) base |= (0x22 & 0xFF);
-            if (strcmp(op_trap.opcode, "in") == 0) base |= (0x23 & 0xFF);
-            if (strcmp(op_trap.opcode, "halt") == 0) base |= (0x25 & 0xFF);
-            data[size++] = base;
-            line_number++;
         }
-        break;
-        case TYPE_LABEL:
-            if (__require != TK_DOT)
-            {
-                token.count = 0;
-                __require = vm_next_token();
-            }
-            if (__require == TK_DOT)
-            {
-                vm_next_token();
-                op_trap.opcode = vm_create_string();
-                token.count = 0;
-            }
-            if (strcmp(op_trap.opcode, "orig") == 0)
-            {
 
-              __require = vm_next_token();
-              if (__require != TK_NUMBER) printf("error\n");
-                int b = 0;
-                if (base10) b = 10;
-                if (base16) b = 16;
-                u16 value = vm_parse_number(b);
-                *start_address = value;
-                size = *start_address;
-                orig_initilized = true;
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-            }
-            if (strcmp(op_trap.opcode, "end") == 0)
-            {
-
-                *len_of_data = size;
-                return;
-            }
-            if (strcmp(op_trap.opcode, "fill") == 0)
-            {
-              __require = vm_next_token();
-              if (__require != TK_NUMBER) printf("error\n");
-                int b = 0;
-                if (base10) b = 10;
-                if (base16) b = 16;
-                u16 value = vm_parse_number(b);
-                data[size++] = value;
-                line_number = size;
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-            }
-
-            if (strcmp(op_trap.opcode, "blkw") == 0)
-            {
-              __require = vm_next_token();
-              if (__require != TK_NUMBER) printf("error\n");
-                int b = 0;
-                if (base10) b = 10;
-                if (base16) b = 16;
-                u16 value = vm_parse_number(b);
-                for (u16 i = 0; i < value; i++) data[size++] = 0;
-                line_number = size;
-
-
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-            }
-
-            if (strcmp(op_trap.opcode, "stringz") == 0)
-            {
-              __require = vm_next_token();
-              if (__require != TK_QUOTES) printf("error\n");
-                while (*c)
-                {
-                    if (*c == '"')
-                    {
-                        c++;
-                        continue;
-                    }
-                    if (*c == '\n') break;
-
-                    data[size++] = *c;
-                    c++;
-                }
-                data[size++] = '\0';
-                line_number = size;
-
-                __require = vm_next_token();
-                if (__require != TK_EOL) printf("error\n");
-            }
-            break;
-        }
+        *len_of_data = size;
     }
 
+    //for (int i = 0x3000; i < size; i++) printf("0x%04x, ", data[i]);
 }
